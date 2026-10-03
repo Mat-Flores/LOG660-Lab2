@@ -1,0 +1,9 @@
+@host = http://localhost:5080
+
+### Client par id (200 si l'id existe)
+GET {{host}}/api/clients/1
+Accept: application/json
+
+### Client inexistant (404)
+GET {{host}}/api/clients/999999
+Accept: application/json
