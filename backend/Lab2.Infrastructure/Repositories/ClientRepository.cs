@@ -1,5 +1,6 @@
 using Lab2.Infrastructure.Data;
 using Lab2.Infrastructure.Entities;
+using Lab2.Infrastructure.Repositories.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
 namespace Lab2.Infrastructure.Repositories;

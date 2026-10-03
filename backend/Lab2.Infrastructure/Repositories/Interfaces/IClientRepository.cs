@@ -1,6 +1,6 @@
 using Lab2.Infrastructure.Entities;
 
-namespace Lab2.Infrastructure.Repositories;
+namespace Lab2.Infrastructure.Repositories.Interfaces;
 
 public interface IClientRepository
 {
