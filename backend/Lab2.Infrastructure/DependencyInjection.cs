@@ -1,5 +1,6 @@
 using Lab2.Infrastructure.Data;
 using Lab2.Infrastructure.Repositories;
+using Lab2.Infrastructure.Repositories.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;

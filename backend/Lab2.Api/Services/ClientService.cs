@@ -1,6 +1,7 @@
 using AutoMapper;
 using Lab2.Api.Dtos;
 using Lab2.Infrastructure.Repositories;
+using Lab2.Infrastructure.Repositories.Interfaces;
 
 namespace Lab2.Api.Services;
 

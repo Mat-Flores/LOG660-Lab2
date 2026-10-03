@@ -1,31 +1,38 @@
-# MonApp — fullstack .NET (EF Core + Oracle) + frontend
+# MonApp — fullstack .NET 9 (EF Core + Oracle) + frontend
 
 ## Structure
 
 ```
 Lab2/
-├── Lab2.sln
+├── .gitignore                            # Fichiers exclus de git (bin/, obj/, .vs/, ...)
 ├── backend/
+│   ├── Lab2.sln                          # Solution .NET : regroupe les deux projets
+│   │
 │   ├── Lab2.Infrastructure/              # Accès aux données (aucune dépendance vers Api)
-│   │   ├── Entities/                     # Classes liées aux tables (Utilisateur, Adresse)
+│   │   ├── DependencyInjection.cs        # AddInfrastructure(): DbContext Oracle + repositories
+│   │   ├── Entities/                     # 17 entités, 1 fichier par table, annotées
 │   │   ├── Data/
 │   │   │   ├── AppDbContext.cs           # Point d'entrée EF Core (DbSet = tables)
-│   │   │   ├── Configurations/           # Mappage fluent : noms Oracle, colonnes, index, relations
-│   │   │   └── Migrations/               # Générées par dotnet ef
-│   │   ├── Repositories/
-│   │   │   ├── Interfaces/               # IUtilisateurRepository, IAdresseRepository
-│   │   │   ├── UtilisateurRepository.cs
-│   │   │   └── AdresseRepository.cs
-│   │   └── DependencyInjection.cs        # AddInfrastructure(): DbContext + repositories
+│   │   │   └── Configurations/           # 1 fichier par entité : relations, ON DELETE
+│   │   └── Repositories/
+│   │       ├── Interfaces/ 
+│   │       │   └── IClientRepository.cs
+│   │       └── ClientRepository.cs       # Exemple: Requêtes EF Core sur CLIENT
 │   │
 │   └── Lab2.Api/                         # Exposition HTTP (dépend de Infrastructure)
-│       ├── Controllers/                  # Endpoints REST (UtilisateursController, HealthController)
-│       ├── Services/                     # Logique métier / orchestration des repositories
-│       ├── Dtos/                         # Objets échangés avec le frontend
-│       ├── Mapping/                      # Profils AutoMapper (Entité <-> DTO)
-│       ├── Middleware/                   # Gestion d'erreurs globale, logs (optionnel)
-│       ├── Program.cs                    # Composition : Infrastructure, mappage, CORS, Swagger
-│       └── appsettings.json              # Chaîne de connexion (sans mot de passe)
+│       ├── Controllers/
+│       │   └── ClientsController.cs      # GET api/clients/{id}
+│       ├── Services/
+│       │   ├── IClientService.cs         # Contrat : logique métier des clients
+│       │   └── ClientService.cs          # Repository -> Entité -> DTO
+│       ├── Dtos/                         # 7 DTOs, 1 fichier par classe
+│       ├── Mapping/
+│       │   └── ClientProfile.cs          # Profil AutoMapper (Entité -> DTO)
+│       ├── Properties/
+│       │   └── launchSettings.json       # Port 5080, environnement Development
+│       ├── Program.cs                    # Composition : DI, AutoMapper, CORS, controllers
+│       ├── appsettings.json              # Chaîne de connexion, CORS, logs
+│       └── Lab2.Api.http                 # Requêtes de test (VS / VS Code)
 │
 └── frontend/                             # Application cliente (indépendante)
 ```
@@ -33,68 +40,61 @@ Lab2/
 Flux :
 `Frontend <-> Controller <-> DTO <-> (Profile) <-> Service <-> Entité <-> Repository <-> DbContext <-> Oracle`
 
-### Règles de dépendance
+## Rôle de chaque dossier
 
-| Couche | Connaît | Ne connaît pas |
-|---|---|---|
-| Controllers | Services, DTOs | DbContext, Repositories, Entités |
-| Services | Repositories, Entités, DTOs (via AutoMapper) | HTTP |
-| Repositories | DbContext, Entités | DTOs, HTTP |
+### Racine
 
-Les entités ne sortent jamais de l'API : les controllers ne manipulent que des DTOs.
+| Élément | Rôle |
+|---|---|
+| `.gitignore` | Liste ce que git ignore : fichiers compilés (`bin/`, `obj/`), dossiers d'IDE (`.vs/`, `.idea/`). |
+| `backend/` | Tout le code serveur .NET. |
+| `frontend/` | Application cliente. Indépendante du .NET : elle ne communique avec le backend que par HTTP/JSON et ne voit que les DTOs. |
 
-## Premier lancement
+### `backend/`
 
-Les migrations vivent dans l'Infrastructure, mais la config (chaîne de connexion) est lue depuis l'Api, d'où les deux options `--project` / `--startup-project` :
+| Élément | Rôle |
+|---|---|
+| `Lab2.sln` | Fichier de solution : regroupe `Lab2.Infrastructure` et `Lab2.Api` pour les compiler ensemble et les ouvrir dans l'IDE. Il ne contient aucun code. |
 
-```bash
-dotnet tool install --global dotnet-ef        # une seule fois
+### `Lab2.Infrastructure/` — tout ce qui touche à Oracle
+
+Si la base de données change, seul ce projet est modifié. Il ne connaît ni l'Api, ni les DTOs, ni HTTP.
+
+| Élément | Rôle |
+|---|---|
+| `DependencyInjection.cs` | Méthode `AddInfrastructure(configuration)` appelée par `Program.cs` : lit la chaîne de connexion, enregistre le `DbContext` Oracle et les repositories. |
+| `Entities/` | Classes C# qui représentent les tables (`Client`, `Film`, `Location`, ...). Les annotations (`[Table]`, `[Column]`, `[Key]`, `[ForeignKey]`, ...) décrivent le mapping vers les tables et colonnes Oracle. Les entités ne sortent jamais de l'Api. |
+| `Data/AppDbContext.cs` | Point d'entrée d'EF Core : un `DbSet` par table, conventions de types (`VARCHAR2`, `DATE`) et chargement des configurations. |
+| `Data/Configurations/` | Une classe par entité qui complète les annotations : relations et comportements `ON DELETE` (cascade ou restrict). |
+| `Repositories/` | Les requêtes EF Core (LINQ), cachées derrière des interfaces pour que les services ne touchent jamais au `DbContext`. Ils renvoient des entités, jamais des DTOs. |
+
+### `Lab2.Api/` — tout ce qui touche au monde extérieur
+
+Dépend de `Lab2.Infrastructure`. C'est le projet de démarrage.
+
+| Élément | Rôle | Connaît | Ne connaît pas |
+|---|---|---|---|
+| `Controllers/` | Endpoints REST. Gardés minces : lisent la requête, appellent un service, renvoient un code HTTP (200, 404, ...). | Services, DTOs | DbContext, Repositories, Entités |
+| `Services/` | Logique métier : orchestrent les repositories et convertissent les entités en DTOs avec AutoMapper. | Repositories, Entités, DTOs | HTTP |
+| `Dtos/` | Objets échangés avec le frontend. **Sortie** : `ClientDto`, `ForfaitDto`, `AdresseDto`, `CarteCreditDto` (numéro de carte masqué, ni CVV ni mot de passe). **Entrée** : `CreerClientDto`, `CreerCarteCreditDto`, `ConnexionDto`, validés par annotations. | — | — |
+| `Mapping/` | Profils AutoMapper qui décrivent la conversion Entité -> DTO (par exemple, `ClientProfile` aplatit `Utilisateur` dans `ClientDto`). | Entités, DTOs | — |
+
+Les autres fichiers de l'Api :
+
+| Élément | Rôle |
+|---|---|
+| `Program.cs` | Composition de l'application : enregistre l'Infrastructure, AutoMapper, les services, les controllers et le CORS, puis démarre le serveur. |
+| `appsettings.json` | Configuration : chaîne de connexion Oracle, origines CORS autorisées (`Cors:AllowedOrigins`), niveaux de logs. |
+| `Properties/launchSettings.json` | Profil de lancement local : port 5080 et environnement `Development`. |
+| `Lab2.Api.http` | Requêtes HTTP prêtes à envoyer pour tester les endpoints, depuis Visual Studio ou VS Code (REST Client). |
+
+## Lancement
+
+Toutes les commandes `dotnet` se lancent depuis `Lab2/backend/`.
+
+```powershell
+cd backend
 dotnet restore
-
-dotnet ef migrations add Initial \
-  --project backend/Lab2.Infrastructure \
-  --startup-project backend/Lab2.Api \
-  --output-dir Data/Migrations
-
-dotnet ef database update \
-  --project backend/Lab2.Infrastructure \
-  --startup-project backend/Lab2.Api       # crée UTILISATEUR et ADRESSE
-
-dotnet run --project backend/Lab2.Api      # http://localhost:5080/api/health
+dotnet build
+dotnet run --project Lab2.Api       # http://localhost:5080
 ```
-
-## Création du squelette
-
-```bash
-dotnet new sln -n Lab2
-dotnet new classlib -n Lab2.Infrastructure -o backend/Lab2.Infrastructure
-dotnet new webapi   -n Lab2.Api            -o backend/Lab2.Api
-dotnet sln add backend/Lab2.Infrastructure backend/Lab2.Api
-dotnet add backend/Lab2.Api reference backend/Lab2.Infrastructure
-```
-
-Packages :
-- `Lab2.Infrastructure` : `Oracle.EntityFrameworkCore`, `Microsoft.EntityFrameworkCore.Design`
-- `Lab2.Api` : `AutoMapper`, `Microsoft.EntityFrameworkCore.Design`
-
-## Composition (Program.cs)
-
-```csharp
-builder.Services.AddInfrastructure(builder.Configuration); // DbContext + repositories
-builder.Services.AddAutoMapper(typeof(Program));
-builder.Services.AddScoped<IUtilisateurService, UtilisateurService>();
-builder.Services.AddControllers();
-builder.Services.AddCors(...);
-```
-
-## Notes
-
-- **Provider** : `Oracle.EntityFrameworkCore` 10.x (officiel Oracle), qui exige Oracle Database **19c ou plus**.
-- **Tables déjà existantes** : si `UTILISATEUR` / `ADRESSE` existent déjà, ne pas lancer la migration ;
-  générer plutôt les entités depuis la BD :
-  `dotnet ef dbcontext scaffold "<connexion>" Oracle.EntityFrameworkCore --project backend/Lab2.Infrastructure --startup-project backend/Lab2.Api --output-dir Entities --context-dir Data`
-- **Noms en majuscules** : EF Core met les identifiants entre guillemets ; sans majuscules explicites, il faudrait
-  écrire `SELECT * FROM "Utilisateur"` dans SQL Developer.
-- **AutoMapper 15+** est sous licence commerciale avec un tier Community gratuit (mode « honor system » :
-  ça fonctionne sans clé, un avertissement apparaît dans les logs). Clé via
-  `dotnet user-secrets set "AutoMapper:LicenseKey" "<clé>"`.

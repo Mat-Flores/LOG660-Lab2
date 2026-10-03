@@ -1,29 +1,28 @@
-using Microsoft.EntityFrameworkCore;
-using MonApp.Api.Data;
+using Lab2.Api.Services;
+using Lab2.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// --- Base de données (EF Core) ---
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseOracle(builder.Configuration.GetConnectionString("Default")));
+// Infrastructure : DbContext Oracle + repositories
+builder.Services.AddInfrastructure(builder.Configuration);
 
-// --- Mappage Entité <-> DTO (scanne tous les Profile de l'assembly) ---
-// Clé de licence optionnelle (AutoMapper 15+) : dotnet user-secrets set "AutoMapper:LicenseKey" "<clé>"
-builder.Services.AddAutoMapper(
-    cfg => cfg.LicenseKey = builder.Configuration["AutoMapper:LicenseKey"],
-    typeof(Program));
+// AutoMapper : détecte automatiquement tous les profils de l'assembly Api
+builder.Services.AddAutoMapper(_ => { }, typeof(Program).Assembly);
 
-// --- CORS : autorise le frontend (Vite par défaut) ---
-const string FrontendCors = "Frontend";
-builder.Services.AddCors(options => options.AddPolicy(FrontendCors, policy => policy
-    .WithOrigins(builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? [])
-    .AllowAnyHeader()
-    .AllowAnyMethod()));
+// Services (logique métier)
+builder.Services.AddScoped<IClientService, ClientService>();
+
+builder.Services.AddControllers();
+
+// CORS : origines autorisées lues dans appsettings.json (Cors:AllowedOrigins)
+var origins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+              ?? Array.Empty<string>();
+builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
+    policy.WithOrigins(origins).AllowAnyHeader().AllowAnyMethod()));
 
 var app = builder.Build();
 
-app.UseCors(FrontendCors);
-
-app.MapGet("/api/health", () => Results.Ok(new { status = "ok" }));
+app.UseCors();
+app.MapControllers();
 
 app.Run();
