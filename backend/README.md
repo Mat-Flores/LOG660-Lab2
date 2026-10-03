@@ -30,8 +30,8 @@ Lab2/
 │       │   └── ClientProfile.cs          # Profil AutoMapper (Entité -> DTO)
 │       ├── Properties/
 │       │   └── launchSettings.json       # Port 5080, environnement Development
-│       ├── Program.cs                    # Composition : DI, AutoMapper, CORS, controllers
-│       ├── appsettings.json              # Chaîne de connexion, CORS, logs
+│       ├── Program.cs                    # Composition : DI, AutoMapper, services, controllers
+│       ├── appsettings.json              # Chaîne de connexion Oracle
 │       └── Lab2.Api.http                 # Requêtes de test (VS / VS Code)
 │
 └── frontend/                             # Application cliente (indépendante)
@@ -83,8 +83,8 @@ Les autres fichiers de l'Api :
 
 | Élément | Rôle |
 |---|---|
-| `Program.cs` | Composition de l'application : enregistre l'Infrastructure, AutoMapper, les services, les controllers et le CORS, puis démarre le serveur. |
-| `appsettings.json` | Configuration : chaîne de connexion Oracle, origines CORS autorisées (`Cors:AllowedOrigins`), niveaux de logs. |
+| `Program.cs` | Composition de l'application : enregistre l'Infrastructure, AutoMapper, les services et les controllers, puis démarre le serveur. |
+| `appsettings.json` | Configuration : chaîne de connexion Oracle (`ConnectionStrings:Default`). |
 | `Properties/launchSettings.json` | Profil de lancement local : port 5080 et environnement `Development`. |
 | `Lab2.Api.http` | Requêtes HTTP prêtes à envoyer pour tester les endpoints, depuis Visual Studio ou VS Code (REST Client). |
 
@@ -96,5 +96,18 @@ Toutes les commandes `dotnet` se lancent depuis `Lab2/backend/`.
 cd backend
 dotnet restore
 dotnet build
-dotnet run --project Lab2.Api       # http://localhost:5080
+dotnet run --project Lab2.Api       # écoute sur http://localhost:5080
 ```
+
+## Test
+
+Le seul endpoint exposé pour l'instant est `GET /api/clients/{id}` :
+
+```powershell
+curl.exe -i http://localhost:5080/api/clients/1     # 200 + JSON si l'id existe, 404 sinon
+```
+
+Les requêtes équivalentes sont dans `Lab2.Api/Lab2.Api.http`.
+
+> `http://localhost:5080/` seul renvoie **404** : aucune route n'est définie sur `/`. Ce n'est pas une erreur.
+> Une réponse **500** sur `/api/clients/1` indique plutôt un problème d'accès à Oracle (réseau de l'école / VPN requis).

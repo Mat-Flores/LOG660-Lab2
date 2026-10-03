@@ -14,15 +14,8 @@ builder.Services.AddScoped<IClientService, ClientService>();
 
 builder.Services.AddControllers();
 
-// CORS : origines autorisées lues dans appsettings.json (Cors:AllowedOrigins)
-var origins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
-              ?? Array.Empty<string>();
-builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
-    policy.WithOrigins(origins).AllowAnyHeader().AllowAnyMethod()));
-
 var app = builder.Build();
 
-app.UseCors();
 app.MapControllers();
 
 app.Run();
