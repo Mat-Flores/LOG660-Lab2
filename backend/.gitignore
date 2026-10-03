@@ -1,2 +1,13 @@
-bin
-obj
+# Build
+bin/
+obj/
+
+# Visual Studio / Rider / VS Code
+.vs/
+.idea/
+.vscode/
+*.user
+*.suo
+
+# Divers
+*.log

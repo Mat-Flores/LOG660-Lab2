@@ -43,16 +43,6 @@ Flux :
 
 Les entités ne sortent jamais de l'API : les controllers ne manipulent que des DTOs.
 
-## Connexion à Oracle
-
-1. Dans `Lab2.Api/appsettings.json`, adapter `User Id` et `Data Source` (`hôte:port/nom_du_service`, le même que dans SQL Developer).
-2. Mettre le mot de passe hors du dépôt (user-secrets, sur le projet de démarrage `Lab2.Api`) :
-
-```bash
-cd backend/Lab2.Api
-dotnet user-secrets set "ConnectionStrings:Default" "User Id=EQUIPE201;Password=<mot_de_passe>;Data Source=bdlog660.ens.ad.etsmtl.ca:1521/ORCLPDB1"
-```
-
 ## Premier lancement
 
 Les migrations vivent dans l'Infrastructure, mais la config (chaîne de connexion) est lue depuis l'Api, d'où les deux options `--project` / `--startup-project` :
