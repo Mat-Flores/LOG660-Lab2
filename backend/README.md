@@ -136,10 +136,77 @@ dotnet build
 dotnet run --project Lab2.Api       # écoute sur http://localhost:5080
 ```
 
-## 5 - Test
+## 5 - Connexion et test
 
-Le seul endpoint exposé pour l'instant est `GET /api/clients/{id}` :
+La connexion utilise les utilisateurs et les mots de passe existants du labo 1. Le service
+`AuthentificationService` vérifie les identifiants, puis le contrôleur crée une session par cookie.
+Le mot de passe n'est jamais renvoyé dans la réponse. La session expire après 30 minutes
+d'inactivité et peut être renouvelée lorsque l'utilisateur continue à utiliser l'API.
+
+| Route | Résultat |
+| --- | --- |
+| `POST /api/auth/connexion` | `200` avec l'identité de l'utilisateur et un cookie de session; `401` si les identifiants sont incorrects; `400` si les champs sont absents ou trop longs. |
+| `GET /api/clients/{id}` | `200` pour son propre profil; `401` sans connexion; `403` pour le profil d'un autre utilisateur; `404` si le profil client n'existe pas. |
+| `POST /api/auth/deconnexion` | `204` et suppression du cookie; `401` sans connexion. |
+
+Depuis PowerShell, remplacer les identifiants par ceux d'un utilisateur existant :
 
 ```powershell
-curl.exe -i http://localhost:5080/api/clients/464812     # 200 + JSON si l'id existe, 404 sinon
+$identifiants = @{ courriel = "client@exemple.com"; motDePasse = "motDePasseExistant" } | ConvertTo-Json
+
+$utilisateur = Invoke-RestMethod -Method Post -Uri http://localhost:5080/api/auth/connexion `
+    -ContentType "application/json" -Body $identifiants -SessionVariable session
+
+Invoke-RestMethod -Uri "http://localhost:5080/api/clients/$($utilisateur.idUtilisateur)" -WebSession $session
+
+Invoke-RestMethod -Method Post -Uri http://localhost:5080/api/auth/deconnexion -WebSession $session
 ```
+
+Les tests automatisés utilisent des données fictives, sans connexion à Oracle :
+
+```powershell
+dotnet test Lab2.sln
+```
+
+## 6 - Consultation du catalogue
+
+Ces routes nécessitent une connexion. Les contrôleurs passent par `CatalogueService`,
+qui regroupe la recherche et la consultation des films et des personnes.
+
+| Route | Résultat |
+| --- | --- |
+| `GET /api/films` | Liste des films : identifiant, titre, année et affiche, triée par titre. |
+| `GET /api/films/{id}` | Fiche du film avec réalisateur, acteurs et personnages, scénaristes, genres, pays et bandes-annonces. |
+| `GET /api/personnes/{id}` | Nom, naissance, photo et biographie d'une personne. |
+
+La recherche accepte les paramètres facultatifs `titre`, `acteur`, `realisateur`, `genre`,
+`pays`, `langue`, `anneeMin` et `anneeMax`. Les filtres se combinent : un film doit tous
+les respecter. Les bornes des années sont inclusives.
+
+Pour le titre, l'acteur et le réalisateur, chaque mot peut être partiel et apparaître dans
+n'importe quel ordre. La recherche ignore les majuscules. Par exemple, `titre=wars star`
+retrouve « Star Wars ». Pour un acteur ou un réalisateur, les mots doivent appartenir
+au nom d'une même personne. Le genre, le pays et la langue correspondent à une valeur
+complète, sans tenir compte des majuscules.
+
+Après la connexion PowerShell de la section précédente, avant la déconnexion :
+
+```powershell
+Invoke-RestMethod -Uri "http://localhost:5080/api/films?titre=wars%20star&anneeMin=1970&anneeMax=2000" -WebSession $session
+
+$films = Invoke-RestMethod -Uri "http://localhost:5080/api/films?genre=action" -WebSession $session
+if ($films.Count -gt 0) {
+    $film = Invoke-RestMethod -Uri "http://localhost:5080/api/films/$($films[0].idFilm)" -WebSession $session
+    if ($null -ne $film.realisateur) {
+        Invoke-RestMethod -Uri "http://localhost:5080/api/personnes/$($film.realisateur.idPersonne)" -WebSession $session
+    }
+}
+```
+
+Une recherche sans résultat retourne `200` avec une liste vide. Une fiche introuvable
+retourne `404`, un filtre invalide retourne `400` et l'absence de connexion retourne `401`.
+
+La fiche utilise les [requêtes séparées EF Core](https://learn.microsoft.com/ef/core/querying/single-split-queries)
+pour charger ses collections sans multiplier les lignes entre les acteurs, genres et pays.
+Les tests du catalogue exercent les routes, services, mappages et requêtes EF Core avec
+une base SQLite en mémoire. Ils ne se connectent pas à la base Oracle du labo 1.

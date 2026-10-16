@@ -1,10 +1,13 @@
+using System.Security.Claims;
 using Lab2.Api.Dtos;
 using Lab2.Api.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Lab2.Api.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/clients")]
 public class ClientsController : ControllerBase
 {
@@ -18,6 +21,9 @@ public class ClientsController : ControllerBase
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ClientDto>> GetById(int id, CancellationToken ct)
     {
+        if (User.FindFirstValue(ClaimTypes.NameIdentifier) != id.ToString())
+            return Forbid();
+
         var client = await _service.GetByIdAsync(id, ct);
 
         if (client is null)

@@ -18,6 +18,8 @@ public static class DependencyInjection
         services.AddDbContext<AppDbContext>(options => options.UseOracle(connectionString));
 
         services.AddScoped<IClientRepository, ClientRepository>();
+        services.AddScoped<IUtilisateurRepository, UtilisateurRepository>();
+        services.AddScoped<ICatalogueRepository, CatalogueRepository>();
 
         return services;
     }
