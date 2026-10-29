@@ -11,28 +11,29 @@ Lab2/
 │   ├── Lab2.Infrastructure/              # Accès aux données (aucune dépendance vers Api)
 │   │   ├── DependencyInjection.cs        # AddInfrastructure(): DbContext Oracle + repositories
 │   │   ├── Entities/                     # 17 entités, 1 fichier par table, annotées
+│   │   ├── Exceptions/
+│   │   │   └── RegleAffairesException.cs # Règle d'affaires violée (quota, inventaire, ...)
 │   │   ├── Data/
 │   │   │   ├── AppDbContext.cs           # Point d'entrée EF Core (DbSet = tables)
 │   │   │   └── Configurations/           # 1 fichier par entité : relations, ON DELETE
 │   │   └── Repositories/
-│   │       ├── Interfaces/ 
-│   │       │   └── IClientRepository.cs
-│   │       └── ClientRepository.cs       # Exemple: Requêtes EF Core sur CLIENT
+│   │       ├── Interfaces/               # ICatalogueRepository, IClientRepository, ILocationRepository
+│   │       ├── ClientRepository.cs       # Client + utilisateur, adresse, forfait, carte (cas 2)
+│   │       ├── CatalogueRepository.cs    # Recherche de films, fiche, personnes (cas 3)
+│   │       ├── LocationRepository.cs     # Copies disponibles, quota, insertion (cas 4)
+│   │       └── RechercheFilmCriteres.cs  # Critères de recherche du cas 3
 │   │
 │   └── Lab2.Api/                         # Exposition HTTP (dépend de Infrastructure)
-│       ├── Controllers/
-│       │   └── ClientsController.cs      # GET api/clients/{id}
-│       ├── Services/
-│       │   ├── IClientService.cs         # Contrat : logique métier des clients
-│       │   └── ClientService.cs          # Repository -> Entité -> DTO
-│       ├── Dtos/                         # 7 DTOs, 1 fichier par classe
+│       ├── Controllers/                  # Auth, Clients, Films, Personnes, Locations
+│       ├── Services/                     # Façade : ClientService, CatalogueService, LocationService
+│       ├── Dtos/                         # 1 fichier par classe
 │       ├── Mapping/
-│       │   └── ClientProfile.cs          # Profil AutoMapper (Entité -> DTO)
+│       │   ├── ClientProfile.cs          # Profil AutoMapper (Entité -> DTO) des clients
+│       │   └── CatalogueProfile.cs       # Profil AutoMapper des films et personnes
 │       ├── Properties/
 │       │   └── launchSettings.json       # Port 5080, environnement Development
 │       ├── Program.cs                    # Composition : DI, AutoMapper, services, controllers
-│       ├── appsettings.json              # Chaîne de connexion Oracle
-│       └── Lab2.Api.http                 # Requêtes de test (VS / VS Code)
+│       └── appsettings.json              # Chaîne de connexion Oracle
 │
 └── frontend/                             # Application cliente (indépendante)
 ```
@@ -75,8 +76,8 @@ Dépend de `Lab2.Infrastructure`. C'est le projet de démarrage.
 | Élément | Rôle | Connaît | Ne connaît pas |
 | --- | --- | --- | --- |
 | `Controllers/` | Endpoints REST. Gardés minces : lisent la requête, appellent un service, renvoient un code HTTP (200, 404, ...). | Services, DTOs | DbContext, Repositories, Entités |
-| `Services/` | Logique métier : orchestrent les repositories et convertissent les entités en DTOs avec AutoMapper. | Repositories, Entités, DTOs | HTTP |
-| `Dtos/` | Objets échangés avec le frontend. **Sortie** : `ClientDto`, `ForfaitDto`, `AdresseDto`, `CarteCreditDto` (numéro de carte masqué, ni CVV ni mot de passe). | — | — |
+| `Services/` | **Façade** (patron de l'énoncé) : toute requête complexe (connexion, recherche, location) passe par un service, jamais directement par les entités. Ils orchestrent les repositories, appliquent les règles d'affaires et convertissent les entités en DTOs avec AutoMapper. | Repositories, Entités, DTOs | HTTP |
+| `Dtos/` | Objets échangés avec le frontend. **Entrée** : `ConnexionDto`, `NouvelleLocationDto`. **Sortie** : `ClientDto` (numéro de carte masqué, ni CVV ni mot de passe), `FilmResumeDto`, `FilmDetailDto`, `PersonneDto`, `CriteresRechercheDto`, `LocationDto`. | — | — |
 | `Mapping/` | Profils AutoMapper qui décrivent la conversion Entité -> DTO (par exemple, `ClientProfile` aplatit `Utilisateur` dans `ClientDto`). | Entités, DTOs | — |
 
 Les autres fichiers de l'Api :
@@ -136,10 +137,50 @@ dotnet build
 dotnet run --project Lab2.Api       # écoute sur http://localhost:5080
 ```
 
-## 5 - Test
+> La BD (`bdlog660.ens.ad.etsmtl.ca`) n'est joignable que depuis le réseau de l'ÉTS ou par VPN. Sinon : `ORA-12154`.
 
-Le seul endpoint exposé pour l'instant est `GET /api/clients/{id}` :
+## 5 - Endpoints
+
+La session est un cookie HttpOnly (`webflix.session`) posé par `login`. Toutes les routes sauf `login`/`logout` exigent ce cookie, sinon **401**. Les erreurs sont des `ProblemDetails` (RFC 7807) : le message à afficher est dans `detail`.
+
+| Cas | Méthode et route | Corps / paramètres | Réponses |
+| --- | --- | --- | --- |
+| 2 | `POST /api/auth/login` | `{ "courriel": "...", "motDePasse": "..." }` | 200 `ClientDto` + cookie ; 401 courriel ou mot de passe invalide ; 400 champ manquant |
+| 2 | `POST /api/auth/logout` | — | 204 |
+| 2 | `GET /api/clients/me` | — | 200 `ClientDto` du client connecté (restaure la session au rechargement) |
+| 3 | `GET /api/films/criteres` | — | 200 `{ genres, pays, langues }` pour les listes déroulantes |
+| 3 | `GET /api/films` | `titre`, `anneeMin`, `anneeMax`, `pays`, `langue`, `genre`, `realisateur`, `acteur` (tous facultatifs, répétables sauf années et langue) | 200 `FilmResumeDto[]` trié par titre (liste vide = aucun résultat) ; 400 si `anneeMin > anneeMax` |
+| 3 | `GET /api/films/{id}` | — | 200 `FilmDetailDto` (avec `copiesDisponibles`) ; 404 |
+| 3 | `GET /api/personnes/{id}` | — | 200 `PersonneDto` (réalisateur ou acteur) ; 404 |
+| 4 | `POST /api/locations` | `{ "idFilm": 123 }` | 201 `LocationDto` ; 404 film inexistant ; 409 aucune copie disponible ou quota du forfait atteint |
+
+Recherche : les critères texte (`titre`, `realisateur`, `acteur`) sont découpés en mots, sans tenir compte de la casse ni de l'ordre (`acteur=hanks tom` trouve « Tom Hanks »). Un critère répété doit être satisfait à chaque fois : `acteur=hanks&acteur=ryan` donne les films avec les deux acteurs.
+
+Location : la copie est choisie par le serveur et le client est celui de la session. Le quota et la disponibilité sont vérifiés dans `LocationService` pour donner des messages clairs. Le trigger `TRG_LOCATION_REGLES` du labo 1 reste le garde-fou contre les locations simultanées : ses erreurs `ORA-20003`/`ORA-20004` sont traduites en 409.
+
+### Frontend et cookie
+
+Le cookie est `SameSite=Strict` et l'API n'active pas CORS : le frontend doit appeler l'API **depuis la même origine**. En développement, on passe par le proxy du serveur de dev, par exemple avec Vite :
+
+```js
+// vite.config.js
+server: { proxy: { '/api': 'http://localhost:5080' } }
+```
+
+Le frontend appelle ensuite `fetch('/api/...')` : le navigateur renvoie le cookie automatiquement.
+
+### Test rapide (PowerShell)
 
 ```powershell
-curl.exe -i http://localhost:5080/api/clients/464812     # 200 + JSON si l'id existe, 404 sinon
+# Cas 2 : Robert Flores, forfait A (10 locations, durée illimitée)
+curl.exe -c jar.txt -H "Content-Type: application/json" -d '{\"courriel\":\"RobertCFlores21@gmail.com\",\"motDePasse\":\"eishie3meiH\"}' http://localhost:5080/api/auth/login
+
+# Cas 3 : films avec Tom Hanks ET Meg Ryan -> Sleepless in Seattle (1993), You've Got Mail (1998)
+curl.exe -b jar.txt "http://localhost:5080/api/films?acteur=hanks%20tom&acteur=ryan%20meg"
+# Cas 3 : fiche de The Lion King (1994), puis celle de James Earl Jones (Mufasa)
+curl.exe -b jar.txt http://localhost:5080/api/films/110357
+curl.exe -b jar.txt http://localhost:5080/api/personnes/469
+
+# Cas 4 : location d'un film ayant plusieurs copies (201, dateRetourMax null pour le forfait A)
+curl.exe -b jar.txt -H "Content-Type: application/json" -d '{\"idFilm\":74958}' http://localhost:5080/api/locations
 ```
