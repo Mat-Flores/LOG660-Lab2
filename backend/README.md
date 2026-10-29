@@ -4,12 +4,13 @@
 
 ```txt
 Lab2/
-├── .gitignore                            # Fichiers exclus de git (bin/, obj/, .vs/, ...)
 ├── backend/
+│   ├── .gitignore                        # Fichiers exclus de git (bin/, obj/, .vs/, ...)
 │   ├── Lab2.sln                          # Solution .NET : regroupe les deux projets
+│   ├── README.md                         # Ce fichier
 │   │
 │   ├── Lab2.Infrastructure/              # Accès aux données (aucune dépendance vers Api)
-│   │   ├── DependencyInjection.cs        # AddInfrastructure(): DbContext Oracle + repositories
+│   │   ├── DependencyInjection.cs        # AddInfrastructure(): DbContext Oracle (compatibilité 21c) + repositories
 │   │   ├── Entities/                     # 17 entités, 1 fichier par table, annotées
 │   │   ├── Exceptions/
 │   │   │   └── RegleAffairesException.cs # Règle d'affaires violée (quota, inventaire, ...)
@@ -47,7 +48,6 @@ Flux :
 
 | Élément | Rôle |
 | --- | --- |
-| `.gitignore` | Liste ce que git ignore : fichiers compilés (`bin/`, `obj/`), dossiers d'IDE (`.vs/`, `.idea/`). |
 | `backend/` | Tout le code serveur .NET. |
 | `frontend/` | Application cliente. Indépendante du .NET : elle ne communique avec le backend que par HTTP/JSON et ne voit que les DTOs. |
 
@@ -55,6 +55,7 @@ Flux :
 
 | Élément | Rôle |
 | --- | --- |
+| `.gitignore` | Liste ce que git ignore : fichiers compilés (`bin/`, `obj/`), dossiers d'IDE (`.vs/`, `.idea/`). |
 | `Lab2.sln` | Fichier de solution : regroupe `Lab2.Infrastructure` et `Lab2.Api` pour les compiler ensemble et les ouvrir dans l'IDE. Il ne contient aucun code. |
 
 ### `Lab2.Infrastructure/` — tout ce qui touche à Oracle
@@ -63,11 +64,12 @@ Si la base de données change, seul ce projet est modifié. Il ne connaît ni l'
 
 | Élément | Rôle |
 | --- | --- |
-| `DependencyInjection.cs` | Méthode `AddInfrastructure(configuration)` appelée par `Program.cs` : lit la chaîne de connexion, enregistre le `DbContext` Oracle et les repositories. |
-| `Entities/` | Classes C# qui représentent les tables (`Client`, `Film`, `Location`, ...). Les annotations (`[Table]`, `[Column]`, `[Key]`, `[ForeignKey]`, ...) décrivent le mapping vers les tables et colonnes Oracle. Les entités ne sortent jamais de l'Api. |
+| `DependencyInjection.cs` | Méthode `AddInfrastructure(configuration)` appelée par `Program.cs` : lit la chaîne de connexion, enregistre le `DbContext` Oracle et les repositories. Le serveur du cours est en Oracle 21c : `UseOracleSQLCompatibility(DatabaseVersion21)` empêche EF de générer du SQL 23ai (`TRUE`/`FALSE`), refusé avec `ORA-00904`. |
+| `Entities/` | Classes C# qui représentent les tables (`Client`, `Film`, `Location`, ...). Les annotations (`[Table]`, `[Column]`, `[Key]`, `[ForeignKey]`, ...) décrivent le mapping vers les tables et colonnes Oracle. Les entités ne sortent jamais de l'Api. Elles suivent la BD réelle : les champs absents des XML du labo 1 sont nullables (`Film` : réalisateur, langue, affiche ; `Personne` : date et lieu de naissance, photo, biographie). |
+| `Exceptions/` | `RegleAffairesException` : règle d'affaires violée (film inexistant, quota du forfait, copie indisponible), avec le code HTTP à renvoyer (404 ou 409). |
 | `Data/AppDbContext.cs` | Point d'entrée d'EF Core : un `DbSet` par table, conventions de types (`VARCHAR2`, `DATE`) et chargement des configurations. |
 | `Data/Configurations/` | Une classe par entité qui complète les annotations : relations et comportements `ON DELETE` (cascade ou restrict). |
-| `Repositories/` | Les requêtes EF Core (LINQ), cachées derrière des interfaces pour que les services ne touchent jamais au `DbContext`. Ils renvoient des entités, jamais des DTOs. |
+| `Repositories/` | Les requêtes EF Core (LINQ), cachées derrière des interfaces pour que les services ne touchent jamais au `DbContext`. Ils renvoient des entités, jamais des DTOs. `RechercheFilmCriteres` regroupe les critères du cas 3 ; le controller le lie directement à la query string. |
 
 ### `Lab2.Api/` — tout ce qui touche au monde extérieur
 
@@ -75,16 +77,16 @@ Dépend de `Lab2.Infrastructure`. C'est le projet de démarrage.
 
 | Élément | Rôle | Connaît | Ne connaît pas |
 | --- | --- | --- | --- |
-| `Controllers/` | Endpoints REST. Gardés minces : lisent la requête, appellent un service, renvoient un code HTTP (200, 404, ...). | Services, DTOs | DbContext, Repositories, Entités |
+| `Controllers/` | Endpoints REST. Gardés minces : lisent la requête, appellent un service, renvoient un code HTTP (200, 201, 400, 401, 404, 409). Tous sauf `AuthController` sont `[Authorize]`. | Services, DTOs, `RechercheFilmCriteres` | DbContext, Repositories, Entités |
 | `Services/` | **Façade** (patron de l'énoncé) : toute requête complexe (connexion, recherche, location) passe par un service, jamais directement par les entités. Ils orchestrent les repositories, appliquent les règles d'affaires et convertissent les entités en DTOs avec AutoMapper. | Repositories, Entités, DTOs | HTTP |
-| `Dtos/` | Objets échangés avec le frontend. **Entrée** : `ConnexionDto`, `NouvelleLocationDto`. **Sortie** : `ClientDto` (numéro de carte masqué, ni CVV ni mot de passe), `FilmResumeDto`, `FilmDetailDto`, `PersonneDto`, `CriteresRechercheDto`, `LocationDto`. | — | — |
-| `Mapping/` | Profils AutoMapper qui décrivent la conversion Entité -> DTO (par exemple, `ClientProfile` aplatit `Utilisateur` dans `ClientDto`). | Entités, DTOs | — |
+| `Dtos/` | Objets échangés avec le frontend. **Entrée** : `ConnexionDto`, `NouvelleLocationDto`. **Sortie** : `ClientDto` (avec `AdresseDto`, `ForfaitDto`, `CarteCreditDto` : numéro de carte masqué, ni CVV ni mot de passe), `FilmResumeDto`, `FilmDetailDto` (avec `PersonneResumeDto`, `ActeurDto`), `PersonneDto`, `CriteresRechercheDto`, `LocationDto`. | — | — |
+| `Mapping/` | Profils AutoMapper qui décrivent la conversion Entité -> DTO : `ClientProfile` aplatit `Utilisateur` dans `ClientDto` ; `CatalogueProfile` aplatit les tables d'association et regroupe les personnages par acteur. | Entités, DTOs | — |
 
 Les autres fichiers de l'Api :
 
 | Élément | Rôle |
 | --- | --- |
-| `Program.cs` | Composition de l'application : enregistre l'Infrastructure, AutoMapper, les services et les controllers, puis démarre le serveur. |
+| `Program.cs` | Composition de l'application : enregistre l'Infrastructure, AutoMapper, les services, l'authentification par cookie et les controllers, puis démarre le serveur. |
 | `appsettings.json` | Configuration : chaîne de connexion Oracle (`ConnectionStrings:Default`). |
 | `Properties/launchSettings.json` | Profil de lancement local : port 5080 et environnement `Development`. |
 
@@ -128,7 +130,7 @@ Visual Studio 2022 (17.12 ou plus récent), VS Code avec l'extension C# Dev Kit,
 
 ## 4 - Lancement
 
-Toutes les commandes `dotnet` se lancent depuis `Lab2/backend/`.
+Depuis la racine du dépôt :
 
 ```powershell
 cd backend
@@ -152,9 +154,9 @@ La session est un cookie HttpOnly (`webflix.session`) posé par `login`. Toutes 
 | 3 | `GET /api/films` | `titre`, `anneeMin`, `anneeMax`, `pays`, `langue`, `genre`, `realisateur`, `acteur` (tous facultatifs, répétables sauf années et langue) | 200 `FilmResumeDto[]` trié par titre (liste vide = aucun résultat) ; 400 si `anneeMin > anneeMax` |
 | 3 | `GET /api/films/{id}` | — | 200 `FilmDetailDto` (avec `copiesDisponibles`) ; 404 |
 | 3 | `GET /api/personnes/{id}` | — | 200 `PersonneDto` (réalisateur ou acteur) ; 404 |
-| 4 | `POST /api/locations` | `{ "idFilm": 123 }` | 201 `LocationDto` ; 404 film inexistant ; 409 aucune copie disponible ou quota du forfait atteint |
+| 4 | `POST /api/locations` | `{ "idFilm": 74958 }` | 201 `LocationDto` ; 404 film inexistant ; 409 aucune copie disponible ou quota du forfait atteint |
 
-Recherche : les critères texte (`titre`, `realisateur`, `acteur`) sont découpés en mots, sans tenir compte de la casse ni de l'ordre (`acteur=hanks tom` trouve « Tom Hanks »). Un critère répété doit être satisfait à chaque fois : `acteur=hanks&acteur=ryan` donne les films avec les deux acteurs.
+Recherche : les critères texte (`titre`, `realisateur`, `acteur`) sont découpés en mots, sans tenir compte de la casse ni de l'ordre (`acteur=hanks tom` trouve « Tom Hanks »). Un critère répété doit être satisfait à chaque fois : `acteur=hanks tom&acteur=ryan meg` donne les films avec les deux acteurs. Les champs pouvant être vides en BD (voir `Entities/`) arrivent à `null` dans le JSON : le frontend doit les gérer.
 
 Location : la copie est choisie par le serveur et le client est celui de la session. Le quota et la disponibilité sont vérifiés dans `LocationService` pour donner des messages clairs. Le trigger `TRG_LOCATION_REGLES` du labo 1 reste le garde-fou contre les locations simultanées : ses erreurs `ORA-20003`/`ORA-20004` sont traduites en 409.
 
