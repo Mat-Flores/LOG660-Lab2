@@ -6,17 +6,17 @@ namespace Lab2.Api.Dtos;
 public class AdresseDto
 {
     [Required, StringLength(10)]
-    public string NumeroCivique { get; set; } = string.Empty;
+    public string? NumeroCivique { get; set; } = string.Empty;
 
     [Required, StringLength(40)]
-    public string Rue { get; set; } = string.Empty;
+    public string? Rue { get; set; } = string.Empty;
 
     [Required, StringLength(40)]
-    public string Ville { get; set; } = string.Empty;
+    public string? Ville { get; set; } = string.Empty;
 
     [Required, StringLength(2, MinimumLength = 2)]
-    public string Province { get; set; } = string.Empty;
+    public string? Province { get; set; } = string.Empty;
 
     [Required, StringLength(7)]
-    public string CodePostal { get; set; } = string.Empty;
+    public string? CodePostal { get; set; } = string.Empty;
 }

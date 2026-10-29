@@ -12,16 +12,15 @@ public class Client
     [Column("IDUTILISATEUR")]
     public int IdUtilisateur { get; set; }
 
-    [Required]
     [Column("CODEFORFAIT")]
     [MaxLength(1)]
-    public string CodeForfait { get; set; } = string.Empty;
+    public string? CodeForfait { get; set; } = string.Empty;
 
     [ForeignKey(nameof(IdUtilisateur))]
     public Utilisateur Utilisateur { get; set; } = null!;
 
     [ForeignKey(nameof(CodeForfait))]
-    public Forfait Forfait { get; set; } = null!;
+    public Forfait? Forfait { get; set; }
 
     public CarteCredit? CarteCredit { get; set; }
     public ICollection<Location> Locations { get; set; } = new List<Location>();

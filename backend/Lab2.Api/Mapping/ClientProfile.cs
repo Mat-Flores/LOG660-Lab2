@@ -25,8 +25,13 @@ public class ClientProfile : Profile
             .ForMember(d => d.Adresse, o => o.MapFrom(s => s.Utilisateur.Adresse));
     }
 
-    internal static string MasquerNumero(string numero)
-        => numero.Length <= 4
+    internal static string MasquerNumero(string? numero)
+    {
+        if (string.IsNullOrEmpty(numero))
+            return string.Empty;
+
+        return numero.Length <= 4
             ? new string('*', numero.Length)
             : new string('*', numero.Length - 4) + numero[^4..];
+    }
 }

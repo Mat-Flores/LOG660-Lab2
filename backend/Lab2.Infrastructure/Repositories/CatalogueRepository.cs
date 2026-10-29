@@ -18,7 +18,7 @@ public class CatalogueRepository : ICatalogueRepository
 
         // Tous les mots doivent être présents, sans imposer leur ordre dans le titre.
         foreach (var mot in Mots(recherche.Titre))
-            films = films.Where(f => f.Titre.ToLower().Contains(mot));
+            films = films.Where(f => f.Titre != null && f.Titre.ToLower().Contains(mot));
 
         if (!string.IsNullOrWhiteSpace(recherche.Acteur))
         {
@@ -29,7 +29,7 @@ public class CatalogueRepository : ICatalogueRepository
         if (!string.IsNullOrWhiteSpace(recherche.Realisateur))
         {
             var realisateurs = IdentifiantsPersonnesParNom(recherche.Realisateur);
-            films = films.Where(f => realisateurs.Contains(f.IdRealisateur));
+            films = films.Where(f => f.IdRealisateur.HasValue && realisateurs.Contains(f.IdRealisateur.Value));
         }
 
         if (!string.IsNullOrWhiteSpace(recherche.Genre))
@@ -47,7 +47,7 @@ public class CatalogueRepository : ICatalogueRepository
         if (!string.IsNullOrWhiteSpace(recherche.Langue))
         {
             var langue = recherche.Langue.Trim().ToLowerInvariant();
-            films = films.Where(f => f.LangueOriginale.ToLower() == langue);
+            films = films.Where(f => f.LangueOriginale != null && f.LangueOriginale.ToLower() == langue);
         }
 
         if (recherche.AnneeMin.HasValue)
@@ -81,7 +81,7 @@ public class CatalogueRepository : ICatalogueRepository
 
         // Les mots doivent appartenir au nom d'une même personne.
         foreach (var mot in Mots(nom))
-            personnes = personnes.Where(p => p.Nom.ToLower().Contains(mot));
+            personnes = personnes.Where(p => p.Nom != null && p.Nom.ToLower().Contains(mot));
 
         return personnes.Select(p => p.IdPersonne);
     }

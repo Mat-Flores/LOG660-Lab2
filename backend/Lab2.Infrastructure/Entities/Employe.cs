@@ -13,10 +13,9 @@ public class Employe
     [Column("IDUTILISATEUR")]
     public int IdUtilisateur { get; set; }
 
-    [Required]
     [Column("MATRICULE")]
     [MaxLength(7)]
-    public string Matricule { get; set; } = string.Empty;
+    public string? Matricule { get; set; } = string.Empty;
 
     [ForeignKey(nameof(IdUtilisateur))]
     public Utilisateur Utilisateur { get; set; } = null!;
