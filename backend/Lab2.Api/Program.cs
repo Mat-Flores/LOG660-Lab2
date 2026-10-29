@@ -12,6 +12,7 @@ builder.Services.AddAutoMapper(_ => { }, typeof(Program).Assembly);
 
 // Services (façade de la logique métier)
 builder.Services.AddScoped<IClientService, ClientService>();
+builder.Services.AddScoped<ICatalogueService, CatalogueService>();
 
 // Session par cookie (cas 2). Une API répond 401/403 au lieu de rediriger vers une page de login.
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
