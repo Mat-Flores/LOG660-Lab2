@@ -15,7 +15,9 @@ public static class DependencyInjection
         var connectionString = configuration.GetConnectionString("Default")
             ?? throw new InvalidOperationException("ConnectionStrings:Default est manquante.");
 
-        services.AddDbContext<AppDbContext>(options => options.UseOracle(connectionString));
+        // Le serveur du cours est en 21c : sans ceci, EF génère du SQL 23ai (TRUE/FALSE) refusé par Oracle.
+        services.AddDbContext<AppDbContext>(options => options.UseOracle(connectionString,
+            oracle => oracle.UseOracleSQLCompatibility(OracleSQLCompatibility.DatabaseVersion21)));
 
         services.AddScoped<IClientRepository, ClientRepository>();
 
