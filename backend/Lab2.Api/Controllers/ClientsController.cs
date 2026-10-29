@@ -1,10 +1,13 @@
+using System.Security.Claims;
 using Lab2.Api.Dtos;
 using Lab2.Api.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Lab2.Api.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/clients")]
 public class ClientsController : ControllerBase
 {
@@ -12,24 +15,15 @@ public class ClientsController : ControllerBase
 
     public ClientsController(IClientService service) => _service = service;
 
-    // GET api/clients/{id}
-    [HttpGet("{id:int}")]
+    // GET api/clients/me : dossier du client connecté (restaure la session côté frontend).
+    [HttpGet("me")]
     [ProducesResponseType(typeof(ClientDto), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<ClientDto>> GetById(int id, CancellationToken ct)
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<ClientDto>> GetMe(CancellationToken ct)
     {
+        var id = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
         var client = await _service.GetByIdAsync(id, ct);
 
-        if (client is null)
-        {
-            return NotFound(new ProblemDetails
-            {
-                Status = StatusCodes.Status404NotFound,
-                Title = "Client introuvable",
-                Detail = $"Aucun client avec l'id {id}."
-            });
-        }
-
-        return Ok(client);
+        return client is null ? Unauthorized() : Ok(client);
     }
 }

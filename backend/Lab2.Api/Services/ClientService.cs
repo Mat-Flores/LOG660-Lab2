@@ -21,4 +21,13 @@ public class ClientService : IClientService
         var client = await _repository.GetByIdAsync(idUtilisateur, ct);
         return client is null ? null : _mapper.Map<ClientDto>(client);
     }
+
+    // shortcut: mot de passe en clair comme au labo 1 ; à hacher si la BD le permet un jour.
+    public async Task<ClientDto?> AuthentifierAsync(string courriel, string motDePasse, CancellationToken ct = default)
+    {
+        var client = await _repository.GetByCourrielAsync(courriel.Trim(), ct);
+        return client is null || client.Utilisateur.MotDePasse != motDePasse
+            ? null
+            : _mapper.Map<ClientDto>(client);
+    }
 }
