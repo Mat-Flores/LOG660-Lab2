@@ -1,14 +1,12 @@
 using Lab2.Api.Dtos;
 using Lab2.Api.Services;
 using Lab2.Infrastructure.Repositories;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Lab2.Api.Controllers;
 
-// Cas 3 : réservé aux clients connectés.
+// Cas 3 : recherche et consultation du catalogue.
 [ApiController]
-[Authorize]
 [Route("api/films")]
 public class FilmsController : ControllerBase
 {

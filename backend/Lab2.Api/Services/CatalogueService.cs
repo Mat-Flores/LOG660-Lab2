@@ -22,12 +22,7 @@ public class CatalogueService : ICatalogueService
     public async Task<FilmDetailDto?> GetFilmAsync(int idFilm, CancellationToken ct = default)
     {
         var film = await _repository.GetFilmAsync(idFilm, ct);
-        if (film is null)
-            return null;
-
-        var dto = _mapper.Map<FilmDetailDto>(film);
-        dto.CopiesDisponibles = await _repository.CompterCopiesDisponiblesAsync(idFilm, ct);
-        return dto;
+        return film is null ? null : _mapper.Map<FilmDetailDto>(film);
     }
 
     public async Task<PersonneDto?> GetPersonneAsync(int idPersonne, CancellationToken ct = default)

@@ -66,10 +66,6 @@ public class CatalogueRepository : ICatalogueRepository
             .Include(f => f.BandesAnnonces)
             .FirstOrDefaultAsync(f => f.IdFilm == idFilm, ct);
 
-    public Task<int> CompterCopiesDisponiblesAsync(int idFilm, CancellationToken ct = default)
-        => _context.Copies.CountAsync(
-            c => c.IdFilm == idFilm && !c.Locations.Any(l => l.DateRetour == null), ct);
-
     public Task<Personne?> GetPersonneAsync(int idPersonne, CancellationToken ct = default)
         => _context.Personnes.AsNoTracking().FirstOrDefaultAsync(p => p.IdPersonne == idPersonne, ct);
 

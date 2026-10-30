@@ -25,7 +25,7 @@ Lab2/
 │   │       └── RechercheFilmCriteres.cs  # Critères de recherche du cas 3
 │   │
 │   └── Lab2.Api/                         # Exposition HTTP (dépend de Infrastructure)
-│       ├── Controllers/                  # Auth, Clients, Films, Personnes, Locations
+│       ├── Controllers/                  # Auth, Films, Personnes, Locations
 │       ├── Services/                     # Façade : ClientService, CatalogueService, LocationService
 │       ├── Dtos/                         # 1 fichier par classe
 │       ├── Mapping/
@@ -77,7 +77,7 @@ Dépend de `Lab2.Infrastructure`. C'est le projet de démarrage.
 
 | Élément | Rôle | Connaît | Ne connaît pas |
 | --- | --- | --- | --- |
-| `Controllers/` | Endpoints REST. Gardés minces : lisent la requête, appellent un service, renvoient un code HTTP (200, 201, 400, 401, 404, 409). Tous sauf `AuthController` sont `[Authorize]`. | Services, DTOs, `RechercheFilmCriteres` | DbContext, Repositories, Entités |
+| `Controllers/` | Endpoints REST. Gardés minces : lisent la requête, appellent un service, renvoient un code HTTP (200, 201, 400, 401, 404, 409). | Services, DTOs, `RechercheFilmCriteres` | DbContext, Repositories, Entités |
 | `Services/` | **Façade** (patron de l'énoncé) : toute requête complexe (connexion, recherche, location) passe par un service, jamais directement par les entités. Ils orchestrent les repositories, appliquent les règles d'affaires et convertissent les entités en DTOs avec AutoMapper. | Repositories, Entités, DTOs | HTTP |
 | `Dtos/` | Objets échangés avec le frontend. **Entrée** : `ConnexionDto`, `NouvelleLocationDto`. **Sortie** : `ClientDto` (avec `AdresseDto`, `ForfaitDto`, `CarteCreditDto` : numéro de carte masqué, ni CVV ni mot de passe), `FilmResumeDto`, `FilmDetailDto` (avec `PersonneResumeDto`, `ActeurDto`), `PersonneDto`, `CriteresRechercheDto`, `LocationDto`. | — | — |
 | `Mapping/` | Profils AutoMapper qui décrivent la conversion Entité -> DTO : `ClientProfile` aplatit `Utilisateur` dans `ClientDto` ; `CatalogueProfile` aplatit les tables d'association et regroupe les personnages par acteur. | Entités, DTOs | — |
@@ -86,7 +86,7 @@ Les autres fichiers de l'Api :
 
 | Élément | Rôle |
 | --- | --- |
-| `Program.cs` | Composition de l'application : enregistre l'Infrastructure, AutoMapper, les services, l'authentification par cookie et les controllers, puis démarre le serveur. |
+| `Program.cs` | Composition de l'application : enregistre l'Infrastructure, AutoMapper, les services, CORS et les controllers, puis démarre le serveur. |
 | `appsettings.json` | Configuration : chaîne de connexion Oracle (`ConnectionStrings:Default`). |
 | `Properties/launchSettings.json` | Profil de lancement local : port 5080 et environnement `Development`. |
 
@@ -143,46 +143,39 @@ dotnet run --project Lab2.Api       # écoute sur http://localhost:5080
 
 ## 5 - Endpoints
 
-La session est un cookie HttpOnly (`webflix.session`) posé par `login`. Toutes les routes sauf `login`/`logout` exigent ce cookie, sinon **401**. Les erreurs sont des `ProblemDetails` (RFC 7807) : le message à afficher est dans `detail`.
+Pas de session côté serveur : `login` renvoie le `ClientDto` du client, et le frontend garde son `idUtilisateur` pour la location. Les erreurs sont des `ProblemDetails` (RFC 7807) : le message à afficher est dans `detail`.
 
 | Cas | Méthode et route | Corps / paramètres | Réponses |
 | --- | --- | --- | --- |
-| 2 | `POST /api/auth/login` | `{ "courriel": "...", "motDePasse": "..." }` | 200 `ClientDto` + cookie ; 401 courriel ou mot de passe invalide ; 400 champ manquant |
-| 2 | `POST /api/auth/logout` | — | 204 |
-| 2 | `GET /api/clients/me` | — | 200 `ClientDto` du client connecté (restaure la session au rechargement) |
+| 2 | `POST /api/auth/login` | `{ "courriel": "...", "motDePasse": "..." }` | 200 `ClientDto` ; 401 courriel ou mot de passe invalide ; 400 champ manquant |
 | 3 | `GET /api/films/criteres` | — | 200 `{ genres, pays, langues }` pour les listes déroulantes |
 | 3 | `GET /api/films` | `titre`, `anneeMin`, `anneeMax`, `pays`, `langue`, `genre`, `realisateur`, `acteur` (tous facultatifs, répétables sauf années et langue) | 200 `FilmResumeDto[]` trié par titre (liste vide = aucun résultat) ; 400 si `anneeMin > anneeMax` |
-| 3 | `GET /api/films/{id}` | — | 200 `FilmDetailDto` (avec `copiesDisponibles`) ; 404 |
+| 3 | `GET /api/films/{id}` | — | 200 `FilmDetailDto` ; 404 |
 | 3 | `GET /api/personnes/{id}` | — | 200 `PersonneDto` (réalisateur ou acteur) ; 404 |
-| 4 | `POST /api/locations` | `{ "idFilm": 74958 }` | 201 `LocationDto` ; 404 film inexistant ; 409 aucune copie disponible ou quota du forfait atteint |
+| 4 | `POST /api/locations` | `{ "idUtilisateur": 997690, "idFilm": 74958 }` | 201 `LocationDto` ; 404 client ou film inexistant ; 409 aucune copie disponible ou quota du forfait atteint |
 
 Recherche : les critères texte (`titre`, `realisateur`, `acteur`) sont découpés en mots, sans tenir compte de la casse ni de l'ordre (`acteur=hanks tom` trouve « Tom Hanks »). Un critère répété doit être satisfait à chaque fois : `acteur=hanks tom&acteur=ryan meg` donne les films avec les deux acteurs. Les champs pouvant être vides en BD (voir `Entities/`) arrivent à `null` dans le JSON : le frontend doit les gérer.
 
-Location : la copie est choisie par le serveur et le client est celui de la session. Le quota et la disponibilité sont vérifiés dans `LocationService` pour donner des messages clairs. Le trigger `TRG_LOCATION_REGLES` du labo 1 reste le garde-fou contre les locations simultanées : ses erreurs `ORA-20003`/`ORA-20004` sont traduites en 409.
+Location : la copie est choisie par le serveur. Le quota et la disponibilité sont vérifiés dans `LocationService` pour donner des messages clairs. Le trigger `TRG_LOCATION_REGLES` du labo 1 reste le garde-fou contre les locations simultanées : ses erreurs `ORA-20003`/`ORA-20004` sont traduites en 409.
 
-### Frontend et cookie
+### Frontend
 
-Le cookie est `SameSite=Strict` et l'API n'active pas CORS : le frontend doit appeler l'API **depuis la même origine**. En développement, on passe par le proxy du serveur de dev, par exemple avec Vite :
-
-```js
-// vite.config.js
-server: { proxy: { '/api': 'http://localhost:5080' } }
-```
-
-Le frontend appelle ensuite `fetch('/api/...')` : le navigateur renvoie le cookie automatiquement.
+CORS accepte toutes les origines : le frontend peut appeler `http://localhost:5080/api/...` directement depuis son propre serveur de développement, sans proxy.
 
 ### Test rapide (PowerShell)
 
+L'API doit tourner (section 4) et le VPN de l'ÉTS être actif.
+
 ```powershell
 # Cas 2 : Robert Flores, forfait A (10 locations, durée illimitée)
-curl.exe -c jar.txt -H "Content-Type: application/json" -d '{\"courriel\":\"RobertCFlores21@gmail.com\",\"motDePasse\":\"eishie3meiH\"}' http://localhost:5080/api/auth/login
+curl.exe -H "Content-Type: application/json" -d '{\"courriel\":\"RobertCFlores21@gmail.com\",\"motDePasse\":\"eishie3meiH\"}' http://localhost:5080/api/auth/login
 
 # Cas 3 : films avec Tom Hanks ET Meg Ryan -> Sleepless in Seattle (1993), You've Got Mail (1998)
-curl.exe -b jar.txt "http://localhost:5080/api/films?acteur=hanks%20tom&acteur=ryan%20meg"
+curl.exe "http://localhost:5080/api/films?acteur=hanks%20tom&acteur=ryan%20meg"
 # Cas 3 : fiche de The Lion King (1994), puis celle de James Earl Jones (Mufasa)
-curl.exe -b jar.txt http://localhost:5080/api/films/110357
-curl.exe -b jar.txt http://localhost:5080/api/personnes/469
+curl.exe http://localhost:5080/api/films/110357
+curl.exe http://localhost:5080/api/personnes/469
 
-# Cas 4 : location d'un film ayant plusieurs copies (201, dateRetourMax null pour le forfait A)
-curl.exe -b jar.txt -H "Content-Type: application/json" -d '{\"idFilm\":74958}' http://localhost:5080/api/locations
+# Cas 4 : location d'un film ayant plusieurs copies (201)
+curl.exe -H "Content-Type: application/json" -d '{\"idUtilisateur\":997690,\"idFilm\":74958}' http://localhost:5080/api/locations
 ```

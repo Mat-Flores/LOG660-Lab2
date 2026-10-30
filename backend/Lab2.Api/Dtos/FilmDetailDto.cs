@@ -16,7 +16,4 @@ public class FilmDetailDto
     public string Resume { get; set; } = string.Empty;
     public string? UrlAffiche { get; set; }
     public List<string> BandesAnnonces { get; set; } = new();
-
-    // Permet au frontend de désactiver le bouton « Louer » (cas 4).
-    public int CopiesDisponibles { get; set; }
 }

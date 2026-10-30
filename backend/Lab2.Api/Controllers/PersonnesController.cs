@@ -1,12 +1,10 @@
 using Lab2.Api.Dtos;
 using Lab2.Api.Services;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Lab2.Api.Controllers;
 
 [ApiController]
-[Authorize]
 [Route("api/personnes")]
 public class PersonnesController : ControllerBase
 {

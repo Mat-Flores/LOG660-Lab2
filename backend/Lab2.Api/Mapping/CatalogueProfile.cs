@@ -26,7 +26,6 @@ public class CatalogueProfile : Profile
                     Nom = g.First().Personne.Nom,
                     Personnages = g.Select(i => i.NomPersonnage).ToList()
                 })))
-            .ForMember(d => d.BandesAnnonces, o => o.MapFrom(s => s.BandesAnnonces.Select(b => b.Lien)))
-            .ForMember(d => d.CopiesDisponibles, o => o.Ignore());
+            .ForMember(d => d.BandesAnnonces, o => o.MapFrom(s => s.BandesAnnonces.Select(b => b.Lien)));
     }
 }

@@ -1,6 +1,5 @@
 using Lab2.Api.Services;
 using Lab2.Infrastructure;
-using Microsoft.AspNetCore.Authentication.Cookies;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -15,32 +14,14 @@ builder.Services.AddScoped<IClientService, ClientService>();
 builder.Services.AddScoped<ICatalogueService, CatalogueService>();
 builder.Services.AddScoped<ILocationService, LocationService>();
 
-// Session par cookie (cas 2). Une API répond 401/403 au lieu de rediriger vers une page de login.
-builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
-    .AddCookie(options =>
-    {
-        options.Cookie.Name = "webflix.session";
-        options.Cookie.HttpOnly = true;
-        options.Cookie.SameSite = SameSiteMode.Strict;
-        options.Events.OnRedirectToLogin = ctx =>
-        {
-            ctx.Response.StatusCode = StatusCodes.Status401Unauthorized;
-            return Task.CompletedTask;
-        };
-        options.Events.OnRedirectToAccessDenied = ctx =>
-        {
-            ctx.Response.StatusCode = StatusCodes.Status403Forbidden;
-            return Task.CompletedTask;
-        };
-    });
-builder.Services.AddAuthorization();
+// Le frontend tourne sur un autre port en développement : on accepte toutes les origines.
+builder.Services.AddCors(o => o.AddDefaultPolicy(p => p.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));
 
 builder.Services.AddControllers();
 
 var app = builder.Build();
 
-app.UseAuthentication();
-app.UseAuthorization();
+app.UseCors();
 
 app.MapControllers();
 

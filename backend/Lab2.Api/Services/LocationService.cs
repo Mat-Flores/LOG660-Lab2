@@ -47,8 +47,7 @@ public class LocationService : ILocationService
             IdLocation = location.IdLocation,
             IdFilm = idFilm,
             CodeCopie = codeCopie,
-            DateLocation = location.DateLocation,
-            DateRetourMax = client.Forfait.DureeMaxJours is int jours ? location.DateLocation.AddDays(jours) : null
+            DateLocation = location.DateLocation
         };
     }
 }
