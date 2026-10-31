@@ -1,0 +1,473 @@
+﻿<Window x:Class="Webflix.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Webflix"
+        Height="760"
+        Width="1150"
+        MinHeight="650"
+        MinWidth="900"
+        WindowStartupLocation="CenterScreen"
+        Background="#F3F5F7">
+
+    <Window.Resources>
+
+        <Style TargetType="Button">
+            <Setter Property="Background" Value="#72B66A"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Padding" Value="16,8"/>
+            <Setter Property="Margin" Value="5"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontSize" Value="14"/>
+        </Style>
+
+        <Style TargetType="TextBox">
+            <Setter Property="Padding" Value="9"/>
+            <Setter Property="Margin" Value="5"/>
+            <Setter Property="MinWidth" Value="150"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+
+        <Style TargetType="ComboBox">
+            <Setter Property="Padding" Value="7"/>
+            <Setter Property="Margin" Value="5"/>
+            <Setter Property="MinWidth" Value="150"/>
+        </Style>
+
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#263238"/>
+            <Setter Property="FontSize" Value="14"/>
+        </Style>
+
+    </Window.Resources>
+
+    <Grid Margin="22">
+
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <DockPanel Grid.Row="0" Margin="0,0,0,18">
+
+            <TextBlock Text="WEBFLIX"
+                       FontSize="27"
+                       FontWeight="Bold"
+                       Foreground="#27843D"
+                       VerticalAlignment="Center"/>
+
+            <StackPanel Orientation="Horizontal"
+                        HorizontalAlignment="Right"
+                        DockPanel.Dock="Right">
+
+                <Button Content="Connexion"
+                        Click="ShowLogin_Click"/>
+
+                <Button Content="Recherche"
+                        Click="ShowSearch_Click"/>
+
+            </StackPanel>
+
+        </DockPanel>
+
+        <!-- CONTENU DES ÉCRANS -->
+
+        <Grid Grid.Row="1">
+
+            <!-- ===================================== -->
+            <!-- CU1 : CONNEXION -->
+            <!-- ===================================== -->
+
+            <Border x:Name="LoginView"
+                    Background="White"
+                    CornerRadius="12"
+                    Padding="35"
+                    MaxWidth="480"
+                    MaxHeight="390"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center">
+
+                <StackPanel>
+
+                    <TextBlock Text="CU1 : Connexion"
+                               FontSize="23"
+                               FontWeight="Bold"
+                               Margin="5,0,5,20"/>
+
+                    <TextBlock Text="Courriel"/>
+
+                    <TextBox x:Name="UsernameBox"/>
+
+                    <TextBlock Text="Mot de passe"/>
+
+                    <PasswordBox x:Name="PasswordBox"
+                                 Margin="5"
+                                 Padding="9"/>
+
+                    <Button Content="Se connecter"
+                            Click="Login_Click"
+                            HorizontalAlignment="Right"
+                            Margin="5,18,5,5"/>
+
+                    <TextBlock x:Name="LoginMessage"
+                               TextWrapping="Wrap"
+                               Margin="5"
+                               Foreground="#B3261E"/>
+
+                </StackPanel>
+
+            </Border>
+
+            <!-- ===================================== -->
+            <!-- CU2 : RECHERCHE DE FILMS -->
+            <!-- ===================================== -->
+
+            <Grid x:Name="SearchView"
+                  Visibility="Collapsed">
+
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="300"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- FILTRES -->
+
+                <Border Grid.Column="0"
+                        Background="White"
+                        CornerRadius="12"
+                        Padding="15"
+                        Margin="0,0,12,0">
+
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+
+                        <StackPanel>
+
+                            <TextBlock Text="CU2 : Recherche"
+                                       FontSize="22"
+                                       FontWeight="Bold"
+                                       Margin="5,5,5,15"/>
+
+                            <TextBlock Text="Titre"/>
+
+                            <TextBox x:Name="TitleFilter"/>
+
+                            <TextBlock Text="Acteur"/>
+
+                            <TextBox x:Name="ActorFilter"/>
+
+                            <TextBlock Text="Réalisateur"/>
+
+                            <TextBox x:Name="DirectorFilter"/>
+
+                            <TextBlock Text="Pays"/>
+
+                            <ComboBox x:Name="CountryFilter">
+                                <ComboBoxItem Content="Tous"
+                                              IsSelected="True"/>
+                            </ComboBox>
+
+                            <TextBlock Text="Genre"/>
+
+                            <ComboBox x:Name="GenreFilter">
+                                <ComboBoxItem Content="Tous"
+                                              IsSelected="True"/>
+                            </ComboBox>
+
+                            <TextBlock Text="Langue"/>
+
+                            <ComboBox x:Name="LanguageFilter">
+                                <ComboBoxItem Content="Toutes"
+                                              IsSelected="True"/>
+                            </ComboBox>
+
+                            <TextBlock Text="Année minimale"/>
+
+                            <TextBox x:Name="YearFromFilter"/>
+
+                            <TextBlock Text="Année maximale"/>
+
+                            <TextBox x:Name="YearToFilter"/>
+
+                            <Button Content="Rechercher"
+                                    Click="Search_Click"
+                                    HorizontalAlignment="Stretch"/>
+
+                            <Button Content="Effacer les filtres"
+                                    Click="ClearFilters_Click"
+                                    Background="#687780"/>
+
+                        </StackPanel>
+
+                    </ScrollViewer>
+
+                </Border>
+
+                <!-- RÉSULTATS -->
+
+                <Border Grid.Column="1"
+                        Background="White"
+                        CornerRadius="12"
+                        Padding="18">
+
+                    <DockPanel>
+
+                        <TextBlock DockPanel.Dock="Top"
+                                   Text="Résultats"
+                                   FontSize="22"
+                                   FontWeight="Bold"
+                                   Margin="5,5,5,15"/>
+
+                        <TextBlock x:Name="ResultCount"
+                                   DockPanel.Dock="Bottom"
+                                   Margin="5,12,5,0"
+                                   Foreground="#607D8B"/>
+
+                        <Button DockPanel.Dock="Bottom"
+                                Content="Consulter le film sélectionné"
+                                Click="ConsultFilm_Click"
+                                HorizontalAlignment="Right"/>
+
+                        <ListBox x:Name="FilmList"
+                                 DisplayMemberPath="Titre"
+                                 FontSize="16"
+                                 SelectionChanged="FilmList_SelectionChanged"/>
+
+                    </DockPanel>
+
+                </Border>
+
+            </Grid>
+
+            <!-- ===================================== -->
+            <!-- CU3 : CONSULTATION D'UN FILM -->
+            <!-- ===================================== -->
+
+            <Grid x:Name="ConsultView"
+                  Visibility="Collapsed">
+
+                <Border Background="White"
+                        CornerRadius="12"
+                        Padding="28">
+
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+
+                        <StackPanel>
+
+                            <TextBlock Text="CU3 : Consultation du film"
+                                       FontSize="23"
+                                       FontWeight="Bold"
+                                       Margin="5,0,5,20"/>
+
+                            <TextBlock x:Name="FilmTitle"
+                                       FontSize="28"
+                                       FontWeight="Bold"
+                                       Foreground="#27843D"
+                                       Margin="5"/>
+
+                            <TextBlock x:Name="FilmYear"
+                                       FontSize="16"
+                                       Margin="5"/>
+
+                            <TextBlock x:Name="FilmDuration"
+                                       Margin="5"/>
+
+                            <TextBlock x:Name="FilmGenre"
+                                       Margin="5"/>
+
+                            <TextBlock x:Name="FilmLanguage"
+                                       Margin="5"
+                                       TextWrapping="Wrap"/>
+
+                            <TextBlock Text="Résumé"
+                                       FontSize="18"
+                                       FontWeight="SemiBold"
+                                       Margin="5,20,5,5"/>
+
+                            <TextBlock x:Name="FilmSummary"
+                                       TextWrapping="Wrap"
+                                       Margin="5"
+                                       FontSize="15"/>
+
+                            <TextBlock x:Name="FilmWriters"
+                                       TextWrapping="Wrap"
+                                       Margin="5,15,5,5"/>
+
+                            <TextBlock Text="Acteurs"
+                                       FontSize="18"
+                                       FontWeight="SemiBold"
+                                       Margin="5,20,5,5"/>
+
+                            <ListBox x:Name="FilmActors"
+                                     DisplayMemberPath="Nom"
+                                     Height="120"
+                                     Margin="5"/>
+
+                            <Button Content="Consulter l'acteur sélectionné"
+                                    Click="ConsultActor_Click"
+                                    HorizontalAlignment="Left"/>
+
+                            <TextBlock Text="Réalisateur"
+                                       FontSize="18"
+                                       FontWeight="SemiBold"
+                                       Margin="5,15,5,5"/>
+
+                            <Button x:Name="FilmDirectorButton"
+                                    Content="Consulter le réalisateur"
+                                    Click="ConsultDirector_Click"
+                                    HorizontalAlignment="Left"
+                                    Margin="5"/>
+
+                            <TextBlock Text="Bandes-annonces"
+                                       FontSize="18"
+                                       FontWeight="SemiBold"
+                                       Margin="5,15,5,5"/>
+
+                            <ListBox x:Name="FilmTrailers"
+                                     Height="90"
+                                     Margin="5"/>
+
+                            <StackPanel Orientation="Horizontal"
+                                        HorizontalAlignment="Right"
+                                        Margin="0,20,0,0">
+
+                                <Button Content="Retour aux résultats"
+                                        Background="#687780"
+                                        Click="BackToSearch_Click"/>
+
+                                <Button Content="Louer ce film"
+                                        Click="Rent_Click"/>
+
+                            </StackPanel>
+
+                        </StackPanel>
+
+                    </ScrollViewer>
+
+                </Border>
+
+            </Grid>
+
+            <!-- ===================================== -->
+            <!-- CU3 : FICHE D'UN ACTEUR OU RÉALISATEUR -->
+            <!-- ===================================== -->
+
+            <Grid x:Name="ActorView"
+                  Visibility="Collapsed">
+
+                <Border Background="White"
+                        CornerRadius="12"
+                        Padding="28">
+
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+
+                        <StackPanel>
+
+                            <TextBlock Text="CU3 : Consultation d'une personne"
+                                       FontSize="23"
+                                       FontWeight="Bold"
+                                       Margin="5,0,5,20"/>
+
+                            <TextBlock x:Name="ActorRole"
+                                       FontSize="15"
+                                       Foreground="#687780"
+                                       Margin="5"/>
+
+                            <TextBlock x:Name="ActorName"
+                                       FontSize="25"
+                                       FontWeight="Bold"
+                                       Foreground="#27843D"
+                                       Margin="5"/>
+
+                            <TextBlock x:Name="ActorBirthDate"
+                                       Margin="5"/>
+
+                            <TextBlock x:Name="ActorBirthPlace"
+                                       Margin="5"/>
+
+                            <TextBlock Text="Biographie"
+                                       FontSize="18"
+                                       FontWeight="SemiBold"
+                                       Margin="5,20,5,5"/>
+
+                            <TextBlock x:Name="ActorBiography"
+                                       TextWrapping="Wrap"
+                                       Margin="5"/>
+
+                            <TextBlock x:Name="ActorFilmAssociation"
+                                       TextWrapping="Wrap"
+                                       Margin="5,20,5,5"/>
+
+                            <Button Content="Retour"
+                                    Click="BackFromActor_Click"
+                                    HorizontalAlignment="Right"
+                                    Margin="5,20,5,5"/>
+
+                        </StackPanel>
+
+                    </ScrollViewer>
+
+                </Border>
+
+            </Grid>
+
+            <!-- ===================================== -->
+            <!-- CU4 : LOCATION -->
+            <!-- ===================================== -->
+
+            <Grid x:Name="RentalView"
+                  Visibility="Collapsed">
+
+                <Border Background="White"
+                        CornerRadius="12"
+                        Padding="35"
+                        MaxWidth="520"
+                        MaxHeight="390"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center">
+
+                    <StackPanel>
+
+                        <TextBlock Text="CU4 : Location"
+                                   FontSize="23"
+                                   FontWeight="Bold"
+                                   Margin="5,0,5,20"/>
+
+                        <TextBlock Text="Film sélectionné :"
+                                   FontWeight="SemiBold"
+                                   Margin="5"/>
+
+                        <TextBlock x:Name="RentalFilmTitle"
+                                   FontSize="19"
+                                   Foreground="#27843D"
+                                   TextWrapping="Wrap"
+                                   Margin="5,5,5,20"/>
+
+                        <TextBlock x:Name="RentalMessage"
+                                   TextWrapping="Wrap"
+                                   Margin="5"
+                                   FontSize="15"/>
+
+                        <StackPanel Orientation="Horizontal"
+                                    HorizontalAlignment="Right"
+                                    Margin="0,20,0,0">
+
+                            <Button Content="Annuler"
+                                    Background="#687780"
+                                    Click="BackToConsult_Click"/>
+
+                            <Button Content="Confirmer la location"
+                                    Click="ConfirmRental_Click"/>
+
+                        </StackPanel>
+
+                    </StackPanel>
+
+                </Border>
+
+            </Grid>
+
+        </Grid>
+
+    </Grid>
+
+</Window>
