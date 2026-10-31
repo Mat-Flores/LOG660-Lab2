@@ -17,11 +17,11 @@ public class LocationRepository : ILocationRepository
     public Task<IDbContextTransaction> CommencerTransactionAsync(CancellationToken ct = default)
         => _context.Database.BeginTransactionAsync(ct);
 
-    public async Task<Client?> GetClientAsync(int id, bool verrouiller, CancellationToken ct = default)
+    public async Task<Client?> GetClientAsync(int id, CancellationToken ct = default)
     {
-        var client = verrouiller && _context.Database.IsOracle()
-            ? await VerrouillerAsync<Client>($"SELECT * FROM CLIENT WHERE IDUTILISATEUR = {id} FOR UPDATE WAIT 5", ct)
-            : await _context.Clients.SingleOrDefaultAsync(c => c.IdUtilisateur == id, ct);
+        if (_context.Database.IsOracle())
+            await VerrouillerAsync($"SELECT IDUTILISATEUR AS \"Value\" FROM CLIENT WHERE IDUTILISATEUR = {id} FOR UPDATE WAIT 5", ct);
+        var client = await _context.Clients.SingleOrDefaultAsync(c => c.IdUtilisateur == id, ct);
 
         if (client is not null)
             await _context.Entry(client).Reference(c => c.Forfait).LoadAsync(ct);
@@ -29,10 +29,12 @@ public class LocationRepository : ILocationRepository
         return client;
     }
 
-    public Task<Film?> GetFilmPourLocationAsync(int id, CancellationToken ct = default)
-        => _context.Database.IsOracle()
-            ? VerrouillerAsync<Film>($"SELECT * FROM FILM WHERE IDFILM = {id} FOR UPDATE WAIT 5", ct)
-            : _context.Films.SingleOrDefaultAsync(f => f.IdFilm == id, ct);
+    public async Task<Film?> GetFilmPourLocationAsync(int id, CancellationToken ct = default)
+    {
+        if (_context.Database.IsOracle())
+            await VerrouillerAsync($"SELECT IDFILM AS \"Value\" FROM FILM WHERE IDFILM = {id} FOR UPDATE WAIT 5", ct);
+        return await _context.Films.SingleOrDefaultAsync(f => f.IdFilm == id, ct);
+    }
 
     public Task<int> CompterLocationsActivesAsync(int idClient, CancellationToken ct = default)
         => _context.Locations.CountAsync(l => l.IdUtilisateur == idClient && l.DateRetour == null, ct);
@@ -58,20 +60,12 @@ public class LocationRepository : ILocationRepository
         }
     }
 
-    public async Task<IReadOnlyList<Location>> GetLocationsActivesAsync(int idClient, CancellationToken ct = default)
-        => await _context.Locations.AsNoTracking()
-            .Include(l => l.Copie).ThenInclude(c => c.Film)
-            .Where(l => l.IdUtilisateur == idClient && l.DateRetour == null)
-            .OrderBy(l => l.DateLocation).ThenBy(l => l.IdLocation)
-            .ToListAsync(ct);
-
-    private async Task<T?> VerrouillerAsync<T>(FormattableString requete, CancellationToken ct) where T : class
+    private async Task VerrouillerAsync(FormattableString requete, CancellationToken ct)
     {
         try
         {
             // Exécution directe : ajouter un filtre LINQ ici pourrait envelopper le FOR UPDATE.
-            var lignes = await _context.Set<T>().FromSqlInterpolated(requete).ToListAsync(ct);
-            return lignes.SingleOrDefault();
+            await _context.Database.SqlQuery<int>(requete).ToListAsync(ct);
         }
         catch (OracleException ex) when (ex.Number is 54 or 60 or 30006)
         {

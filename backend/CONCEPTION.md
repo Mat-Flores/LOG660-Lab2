@@ -1,94 +1,145 @@
 # Conception du backend
 
-## Périmètre
+## Périmètre et architecture
 
-Le backend couvre les cas 2, 3 et 4 : connexion, consultation interactive et location.
-Il prolonge les deux projets .NET existants et utilise le schéma Oracle du labo 1.
-Le client mince est développé séparément dans `frontend/`.
+Le backend reprend les deux projets .NET de l'équipe et couvre seulement les cas
+2 (connexion), 3 (consultation) et 4 (location). Le schéma et les scripts du labo 1 restent inchangés.
+Entity Framework Core et son fournisseur Oracle assurent le mappage ORM.
 
-## Répartition des responsabilités
+Les contrôleurs lisent les demandes et construisent les réponses HTTP. Les services sont
+les façades des opérations métier. Les repositories encapsulent les requêtes et
+`AppDbContext` fournit le suivi des entités et la transaction. AutoMapper construit
+les DTO, qui évitent les cycles de navigation et l'exposition des données sensibles.
 
-| Élément | Responsabilité |
-| --- | --- |
-| Contrôleurs | Lire la requête, récupérer l'identité connectée et choisir la réponse HTTP. |
-| `AuthentificationService` | Vérifier les identifiants d'un utilisateur existant. |
-| `CatalogueService` | Rechercher les films et consulter les fiches des films et des personnes. |
-| `LocationService` | Vérifier les conditions d'une location et gérer sa transaction. |
-| `ClientService` | Consulter le profil du client. |
-| Repositories | Exécuter les requêtes et écritures sur le contexte EF Core. |
-| `AppDbContext` et configurations | Décrire les tables, colonnes, clés et associations Oracle. |
-| DTO et profils AutoMapper | Construire les données utiles au client sans sérialiser les entités. |
+Cette séparation permet de modifier une requête sans changer le contrat HTTP et de
+vérifier les règles avec une base temporaire. Le client mince n'a pas besoin de connaître
+les tables, les jointures ou les étapes d'une location.
 
-Les services forment les façades de l'application. Les contrôleurs ne manipulent pas le contexte de données.
-Le projet Infrastructure ne dépend pas du projet Api.
+## Classes et relations
 
-## Connexion
+```mermaid
+classDiagram
+    Utilisateur <|-- Client
+    Utilisateur <|-- Employe
+    Utilisateur "1" -- "0..1" Adresse
+    Client "0..*" --> "0..1" Forfait
+    Client "1" -- "0..1" CarteCredit
+    Client "1" -- "0..*" Location
+    Location "0..*" --> "1" Copie
+    Copie "0..*" --> "1" Film
+    Film "0..*" --> "0..1" Personne : realisateur
+    Film "1" -- "0..*" Interpretation
+    Interpretation "0..*" --> "1" Personne : acteur
+    Film "1" -- "0..*" FilmScenariste
+    FilmScenariste "0..*" --> "1" Personne
+    Film "1" -- "0..*" FilmGenre
+    FilmGenre "0..*" --> "1" Genre
+    Film "1" -- "0..*" FilmPays
+    FilmPays "0..*" --> "1" Pays
+    Film "1" -- "0..*" BandeAnnonce
+```
 
-Le repository recherche l'utilisateur par courriel avec une requête paramétrée.
-Le service compare le mot de passe en respectant le format déjà stocké au labo 1.
-Un échec retourne le même message pour un courriel inconnu ou un mauvais mot de passe.
-Après une réussite, le contrôleur émet un cookie contenant l'identifiant de l'utilisateur.
-Les opérations suivantes utilisent cette identité pour consulter son profil ou louer un film.
-
-## Consultation
-
-Les critères de recherche sont facultatifs et se combinent avec un ET logique.
-Pour les critères textuels libres, chaque mot est recherché comme une partie du titre ou du nom,
-indépendamment de sa position et des majuscules. Tous les mots d'une recherche d'acteur
-doivent appartenir à une même personne.
-
-La liste retourne seulement les renseignements de sélection. La fiche détaillée contient
-le réalisateur, les interprétations, les scénaristes, les genres, les pays et les bandes-annonces.
-Une fiche de personne donne accès à sa biographie et à ses renseignements personnels publics.
-
-Les lectures utilisent `AsNoTracking`. Les collections de la fiche de film sont chargées
-avec `AsSplitQuery` pour éviter leur multiplication dans une seule jointure.
-
-## Déroulement d'une location
-
-1. Le contrôleur récupère le client depuis la session et le film depuis la demande.
-2. Le service ouvre une transaction et demande le verrouillage du client.
-3. Il vérifie que le compte est un client avec un forfait valide.
-4. Il verrouille le film et vérifie son existence.
-5. Il compte les locations dont `dateRetour` est absente et vérifie le quota.
-6. Il sélectionne une copie sans location en cours.
-7. Il crée une entité `Location` et demande sa sauvegarde par EF Core.
-8. Il valide la transaction et retourne le résultat avec l'identifiant généré par Oracle.
-
-Une erreur avant la validation annule la transaction. Les appels de location prennent
-les verrous dans le même ordre : client, puis film. Le premier protège le quota entre
-plusieurs films; le second protège la sélection des copies entre plusieurs clients de l'API.
-L'attente d'un verrou Oracle est limitée à cinq secondes. Un conflit attendu retourne `409`.
-
-La disponibilité se déduit de `Location.dateRetour`; aucun nouvel état n'est stocké dans `Copie`.
-La durée maximale du forfait sert à calculer la date prévue, sans modifier le schéma.
-Les triggers du labo 1 restent une validation supplémentaire lors de l'insertion.
+Les cardinalités facultatives reflètent les colonnes nullables du SQL fourni.
+`Employe` complète la hiérarchie existante ; aucune opération de gestion des employés n'est exposée.
+Les acteurs, réalisateurs et scénaristes sont des rôles de `Personne`, déterminés par les associations.
 
 ## Mappage objet-relationnel
 
-Les 17 entités correspondent aux 17 tables existantes. Les noms sont forcés en majuscules
-car Oracle stocke ainsi les identifiants SQL créés sans guillemets.
-
-| Élément | Mappage |
+| Élément demandé à la tâche 2 | Choix |
 | --- | --- |
-| Chaînes | `VARCHAR2`, avec les longueurs du schéma. |
-| Dates | `DATE`; type C# nullable lorsque la colonne accepte une valeur absente. |
-| Biographie | `CLOB`. |
-| Coût du forfait | `NUMBER(5,2)` et `decimal`. |
-| Utilisateur, film et personne | Identifiants existants, sans génération automatique à l'insertion. |
-| Location | Identifiant fourni par la colonne Oracle identity. |
-| Tables associatives | Clés composées conservées. |
+| Classe → table | Les 17 tables existantes, identifiées en majuscules. |
+| Identifiant | Clé simple ou composée correspondant au SQL. `LOCATION.IDLOCATION` utilise l'identité Oracle. Les autres identifiants existent déjà. |
+| Propriété → colonne | Noms, longueurs et valeurs facultatives du schéma. `DATE`, chaînes non Unicode (`VARCHAR2`), `CLOB` et coût à précision 5, échelle 2. |
+| Associations | Références, collections et classes d'association explicites. `INTERPRETATION` conserve le personnage dans sa clé composée. |
+| Spécialisation | `Client : Utilisateur` et `Employe : Utilisateur`, avec une table par type (TPT). Les clés des sous-classes sont aussi des FK vers `UTILISATEUR`. |
 
-`Client` et `Employe` sont reliés à `Utilisateur` par une association un-à-un dont la clé
-primaire est aussi une clé étrangère. Ce mappage reprend les tables de spécialisation existantes.
-`Adresse` et `CarteCredit` utilisent également une clé primaire partagée avec leur propriétaire.
+Le TPT correspond au schéma déjà livré : les attributs communs sont dans `UTILISATEUR`,
+les attributs spécifiques dans `CLIENT` et `EMPLOYE`. Le chargement d'un client joint
+les tables nécessaires. Aucun discriminateur ni nouvelle table n'est requis.
+`Adresse` et `CarteCredit` restent des associations un-à-un avec une clé partagée.
 
-Les suppressions en cascade sont limitées aux relations de composition décrites dans le schéma.
-Les relations de `Location` restent restrictives pour conserver l'historique.
-L'application n'exécute aucune migration ni création de tables au démarrage.
+Les annotations décrivent les propriétés ; les configurations Fluent complètent les clés,
+relations et l'héritage. Les suppressions en cascade et les relations restrictives suivent
+les clés étrangères du labo 1. L'application ne crée ni ne migre le schéma au démarrage.
+Les propriétés facultatives permettent aussi de lire les données anciennes conservées
+par les contraintes `ENABLE NOVALIDATE` du labo 1.
 
-## Éléments pour le rapport du laboratoire
+## Connexion et contrôle des accès
 
-Cette note fournit les choix de conception de la partie backend. Le rapport final doit
-les intégrer au gabarit du cours, avec la présentation du client mince, la répartition réelle
-du travail et les éléments propres à l'équipe. Ces informations ne sont pas déduites du code.
+`ClientService` recherche un client par courriel. Le mot de passe est comparé exactement
+au format existant du labo 1. Un échec ne révèle pas si le courriel existe.
+La réponse contient `ClientDto` avec les données personnelles, l'adresse et le forfait.
+Le numéro de carte est masqué ; le mot de passe et le CVV restent exclus.
+
+Après une connexion valide, ASP.NET Core protège un ticket contenant l'identifiant du client
+et une expiration de 30 minutes. Le jeton est retourné dans `X-Auth-Token`.
+Pour louer, le client doit présenter ce jeton dans `Authorization: Bearer ...`.
+Le serveur vérifie le jeton et l'égalité entre son identifiant et celui du corps JSON.
+Le catalogue reste public. Le mécanisme fonctionne sans cookie et sans nouvelle table.
+Le frontend devra transmettre cet en-tête lors de son intégration.
+
+## Consultation
+
+Les critères facultatifs et leurs répétitions sont combinés par un ET logique.
+Les mots partiels du titre ou d'un nom peuvent apparaître dans n'importe quel ordre.
+Tous les mots d'un critère acteur doivent concerner la même personne.
+Deux critères acteur permettent d'exiger la présence de deux acteurs recherchés.
+Les années sont inclusives ; pays, genres et langue correspondent à des valeurs complètes.
+
+Les listes de critères viennent des tables de référence et des langues distinctes des films.
+Les résultats sont triés par titre puis année. La fiche détail regroupe les personnages
+par acteur et fournit les identifiants des personnes pour consulter leurs biographies.
+
+Les lectures utilisent `AsNoTracking`. Les collections d'une fiche sont chargées avec
+`AsSplitQuery` pour éviter le produit cartésien des pays, genres, rôles et bandes-annonces.
+Les filtres LINQ sont exécutés dans la base avec des paramètres.
+
+## Transaction de location
+
+1. Le contrôleur vérifie le jeton et l'identifiant demandé.
+2. Le service ouvre une transaction ORM.
+3. Il verrouille la ligne `CLIENT`, charge le client et vérifie son forfait.
+4. Il verrouille la ligne `FILM` et vérifie son existence.
+5. Il compte les locations actives et vérifie le quota du forfait.
+6. Il choisit une copie sans location active.
+7. Il sauvegarde une nouvelle `Location` avec la date du jour, puis valide la transaction.
+
+Le verrou du client protège le quota entre les demandes de cette API, même pour des films
+différents. Le verrou du film protège le choix de copie entre ses demandes pour un même film.
+L'ordre de prise des verrous est constant. Leur attente Oracle est limitée à cinq secondes.
+Une erreur avant le commit entraîne l'annulation de la transaction.
+
+La lecture de verrou utilise un SQL paramétré `FOR UPDATE WAIT 5`, à travers le contexte ORM.
+Les entités sont ensuite chargées normalement par EF Core, y compris les jointures TPT.
+L'insertion reste une sauvegarde ORM. Les triggers du labo 1 restent actifs et leurs refus
+de quota/disponibilité sont traduits en conflit `409`.
+Les appels SQL externes qui ne suivent pas ce protocole doivent être validés séparément.
+
+La disponibilité et le quota utilisent `DATERETOUR IS NULL`. Une ancienne location retournée
+ne bloque ni la copie ni le quota. Les données du forfait conservent les durées 10, 30 ou
+sans limite ; aucun retour ni contrôle des retards n'est ajouté au périmètre HTTP.
+
+## Validation et tests
+
+| Domaine | Vérifications |
+| --- | --- |
+| Entrées | Champs requis, tailles, identifiants positifs, format et ordre des années. |
+| Accès | Connexion réservée aux clients, jeton absent/falsifié/expiré, location pour un autre client. |
+| Catalogue | Chaque critère, combinaisons, critères répétés, mots inversés, résultat vide, fiches et rôles multiples, valeurs nulles. |
+| Locations | Quotas D/I/A, copie indisponible, copies distinctes, historique retourné, forfait manquant et annulation sur erreur d'insertion. |
+| Mappage | Tables et colonnes comparées au SQL du labo 1, héritage TPT, absence de discriminateur, clés composées, types et génération d'identifiant. |
+| Contrats | DTO, masquage de carte, absence de données sensibles, codes HTTP et appels CORS avec jeton. |
+
+Les tests d'intégration locaux démarrent la véritable API avec SQLite en mémoire,
+à la place d'Oracle. Ils sont ignorés par Git et conservés pour les vérifications de l'équipe.
+Une vérification Oracle facultative en lecture est aussi disponible localement.
+SQLite ne valide pas les triggers ni les verrous Oracle : le parcours de démonstration
+doit être exécuté sur la base du cours pour confirmer ces comportements.
+
+## Rapport du laboratoire
+
+Cette note fournit les éléments de conception du backend. Le rapport final devra les
+intégrer au gabarit du cours, ajouter la partie client mince, les réponses théoriques complètes,
+les difficultés réellement rencontrées et la répartition réelle des tâches.
+La grille évalue l'implémentation des tests : leur exclusion de GitHub permet de les fournir
+séparément pour la remise et de les présenter au besoin.

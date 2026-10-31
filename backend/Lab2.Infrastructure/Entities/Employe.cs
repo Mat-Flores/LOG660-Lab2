@@ -6,17 +6,9 @@ namespace Lab2.Infrastructure.Entities;
 
 [Table("EMPLOYE")]
 [Index(nameof(Matricule), IsUnique = true, Name = "UQ_EMPLOYE_MATRICULE")]
-public class Employe
+public class Employe : Utilisateur
 {
-    [Key]
-    [DatabaseGenerated(DatabaseGeneratedOption.None)]   // PK = FK vers UTILISATEUR
-    [Column("IDUTILISATEUR")]
-    public int IdUtilisateur { get; set; }
-
     [Column("MATRICULE")]
     [MaxLength(7)]
     public string? Matricule { get; set; } = string.Empty;
-
-    [ForeignKey(nameof(IdUtilisateur))]
-    public Utilisateur Utilisateur { get; set; } = null!;
 }

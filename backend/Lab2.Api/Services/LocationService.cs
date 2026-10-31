@@ -16,7 +16,7 @@ public class LocationService : ILocationService
         await using var transaction = await _repository.CommencerTransactionAsync(ct);
 
         // Toujours verrouiller le client avant le film : quota et disponibilité restent cohérents.
-        var client = await _repository.GetClientAsync(idClient, verrouiller: true, ct);
+        var client = await _repository.GetClientAsync(idClient, ct);
         var forfait = ExigerForfait(client);
         var film = await _repository.GetFilmPourLocationAsync(idFilm, ct)
             ?? throw new RegleLocationException(MotifRefusLocation.FilmIntrouvable, "Ce film est introuvable.");
@@ -41,15 +41,7 @@ public class LocationService : ILocationService
 
         await _repository.AjouterAsync(location, ct);
         await transaction.CommitAsync(ct);
-        return Convertir(location, forfait);
-    }
-
-    public async Task<IReadOnlyList<LocationDto>> GetLocationsActivesAsync(int idClient, CancellationToken ct = default)
-    {
-        var client = await _repository.GetClientAsync(idClient, verrouiller: false, ct);
-        var forfait = ExigerForfait(client);
-        var locations = await _repository.GetLocationsActivesAsync(idClient, ct);
-        return locations.Select(l => Convertir(l, forfait)).ToList();
+        return Convertir(location);
     }
 
     private static Forfait ExigerForfait(Client? client)
@@ -65,15 +57,11 @@ public class LocationService : ILocationService
         return client.Forfait;
     }
 
-    private static LocationDto Convertir(Location location, Forfait forfait) => new()
+    private static LocationDto Convertir(Location location) => new()
     {
         IdLocation = location.IdLocation,
         IdFilm = location.Copie.IdFilm,
-        Titre = location.Copie.Film.Titre,
         CodeCopie = location.CodeCopie,
-        DateLocation = location.DateLocation,
-        DateRetourPrevue = forfait.DureeMaxJours.HasValue
-            ? location.DateLocation.AddDays(forfait.DureeMaxJours.Value)
-            : null
+        DateLocation = location.DateLocation
     };
 }

@@ -17,31 +17,19 @@ public class LocationsController : ControllerBase
     public LocationsController(ILocationService service) => _service = service;
 
     [HttpPost]
-    public async Task<ActionResult<LocationDto>> Louer(LocationDemandeDto demande, CancellationToken ct)
+    public async Task<ActionResult<LocationDto>> Louer(NouvelleLocationDto demande, CancellationToken ct)
     {
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var idClient))
             return Unauthorized();
+
+        if (demande.IdUtilisateur != idClient)
+            return Problem(statusCode: StatusCodes.Status403Forbidden, title: "Location refusée",
+                detail: "Vous pouvez uniquement louer avec votre propre compte.");
 
         try
         {
             var location = await _service.LouerAsync(idClient, demande.IdFilm, ct);
             return StatusCode(StatusCodes.Status201Created, location);
-        }
-        catch (RegleLocationException ex)
-        {
-            return Refuser(ex);
-        }
-    }
-
-    [HttpGet]
-    public async Task<ActionResult<IReadOnlyList<LocationDto>>> GetLocationsActives(CancellationToken ct)
-    {
-        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var idClient))
-            return Unauthorized();
-
-        try
-        {
-            return Ok(await _service.GetLocationsActivesAsync(idClient, ct));
         }
         catch (RegleLocationException ex)
         {

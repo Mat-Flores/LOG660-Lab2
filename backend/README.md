@@ -1,130 +1,203 @@
-# LOG660 - Labo 2 : backend
+# Lab2 - Backend
 
-API ASP.NET Core (.NET 9) pour la connexion, la consultation du catalogue et la location de films.
-Les données proviennent de la base Oracle du labo 1.
+Le serveur couvre les cas d'utilisation 2 (connexion), 3 (consultation) et 4 (location).
+Il utilise les tables et les données Oracle du labo 1 avec Entity Framework Core,
+l'équivalent ORM retenu pour les deux projets .NET existants.
 
-## Organisation
+## 1 - Structure
 
-- `Lab2.Api/Controllers` : routes HTTP et réponses.
-- `Lab2.Api/Services` : façades et règles métier.
-- `Lab2.Api/Dtos` : données reçues ou retournées par l'API.
-- `Lab2.Api/Mapping` : conversion des entités en DTO avec AutoMapper.
-- `Lab2.Infrastructure/Entities` : classes correspondant aux 17 tables.
-- `Lab2.Infrastructure/Data` : contexte EF Core et configurations des relations.
-- `Lab2.Infrastructure/Repositories` : lectures, écritures et transactions avec Oracle.
+```text
+backend/
+├── Lab2.sln
+├── README.md
+├── CONCEPTION.md
+├── DEMONSTRATION.md
+├── Lab2.Infrastructure/
+│   ├── DependencyInjection.cs
+│   ├── Entities/                     # Classes métier et annotations ORM
+│   ├── Data/
+│   │   ├── AppDbContext.cs
+│   │   └── Configurations/           # Clés, associations et héritage TPT
+│   ├── Models/RegleLocationException.cs
+│   └── Repositories/
+│       ├── Interfaces/
+│       ├── ClientRepository.cs
+│       ├── CatalogueRepository.cs
+│       ├── LocationRepository.cs
+│       └── RechercheFilmCriteres.cs
+└── Lab2.Api/
+    ├── Controllers/                  # Auth, Films, Personnes, Locations
+    ├── Services/                     # Façades des cas 2, 3 et 4
+    ├── Dtos/                         # Contrats HTTP d'entrée et de sortie
+    ├── Mapping/                      # Conversion entités → DTO
+    ├── Properties/launchSettings.json
+    ├── Program.cs
+    └── appsettings.json
+```
 
-Flux d'une requête :
+## 2 - Rôle des composants
 
-`Contrôleur -> Service -> Repository -> AppDbContext -> Oracle`
+| Composant | Responsabilité |
+| --- | --- |
+| Contrôleurs | Recevoir les demandes, contrôler l'identité pour la location et retourner les réponses HTTP. |
+| `ClientService` | Vérifier le courriel et le mot de passe d'un client, puis construire son profil. |
+| `CatalogueService` | Fournir la recherche, les critères disponibles et les fiches des films et personnes. |
+| `LocationService` | Orchestrer les contrôles métier et la transaction de location. |
+| Repositories | Exécuter les lectures et écritures EF Core. |
+| Entités et configurations | Mapper les classes, propriétés, identifiants, associations et spécialisations sur Oracle. |
+| Profils AutoMapper | Construire les DTO sans exposer les entités et leurs propriétés sensibles. |
+| `Program.cs` | Configurer les dépendances, l'authentification par jeton, CORS et les contrôleurs. |
 
-## Lancement
+Les services forment les façades : le client déclenche une opération sans connaître
+les requêtes ni les règles nécessaires à son exécution.
+`Lab2.Api` dépend de `Lab2.Infrastructure`. Infrastructure ne dépend pas d'Api.
 
-Prérequis : SDK .NET 9 et accès à la base du cours depuis le réseau ÉTS ou le VPN.
-La chaîne de connexion est lue dans `Lab2.Api/appsettings.json`, à la clé `ConnectionStrings:Default`.
-Elle peut être remplacée par la variable d'environnement `ConnectionStrings__Default`.
+## 3 - Installation et lancement
 
-Depuis la racine du dépôt :
+Prérequis : SDK .NET 9, accès réseau à Oracle et identifiants du schéma du labo 1.
+Le pilote Oracle est fourni par NuGet.
+
+Depuis la racine du dépôt, dans PowerShell :
 
 ```powershell
-cd backend
-dotnet restore
-dotnet build
-dotnet run --project Lab2.Api
+dotnet restore backend/Lab2.sln
+dotnet build backend/Lab2.sln
+# Facultatif : remplacer la configuration uniquement pour ce terminal.
+$env:ConnectionStrings__Default = 'User Id=VOTRE_SCHEMA;Password=VOTRE_MOT_DE_PASSE;Data Source=HOTE:PORT/SERVICE'
+dotnet run --project backend/Lab2.Api
 ```
 
-L'API écoute sur `http://localhost:5080`.
-L'application utilise le schéma existant : elle ne crée ni ne modifie les tables au démarrage.
+L'API écoute sur `http://localhost:5080` avec le profil fourni.
+La connexion peut aussi être configurée dans `Lab2.Api/appsettings.json`.
+Le fournisseur génère du SQL compatible Oracle 21c pour éviter les expressions
+booléennes SQL des versions plus récentes.
 
-## Routes
+L'application ne lance aucune migration ni création de tables. Elle utilise le schéma
+existant, y compris ses contraintes et ses triggers.
 
-| Méthode | Route | Utilisation |
-| --- | --- | --- |
-| POST | `/api/auth/connexion` | Vérifier le courriel et le mot de passe, puis ouvrir une session. |
-| POST | `/api/auth/deconnexion` | Fermer la session. |
-| GET | `/api/clients/{id}` | Consulter son propre profil client. |
-| GET | `/api/films` | Rechercher des films. |
-| GET | `/api/films/{id}` | Consulter la fiche d'un film. |
-| GET | `/api/personnes/{id}` | Consulter les renseignements et la biographie d'une personne. |
-| POST | `/api/locations` | Louer une copie disponible du film demandé. |
-| GET | `/api/locations` | Consulter ses locations en cours. |
+## 4 - Endpoints
 
-Toutes les routes, sauf la connexion, demandent le cookie de session.
-La session expire après 30 minutes d'inactivité. Le mot de passe n'est pas retourné dans les réponses.
+| Méthode | Route | Entrée | Réponse |
+| --- | --- | --- | --- |
+| POST | `/api/auth/login` | `ConnexionDto` | `ClientDto` et en-tête `X-Auth-Token` |
+| GET | `/api/films/criteres` | — | Genres, pays et langues pour les listes de recherche |
+| GET | `/api/films` | Critères de recherche dans l'URL | Liste de `FilmResumeDto` |
+| GET | `/api/films/{id}` | Identifiant du film | `FilmDetailDto` |
+| GET | `/api/personnes/{id}` | Identifiant de la personne | `PersonneDto` |
+| POST | `/api/locations` | `NouvelleLocationDto` et jeton | `LocationDto`, statut `201` |
 
-## Recherche
-
-Les paramètres facultatifs sont `titre`, `acteur`, `realisateur`, `genre`, `pays`,
-`langue`, `anneeMin` et `anneeMax`. Un film doit respecter tous les filtres fournis.
-Les bornes des années sont inclusives.
-
-Le titre, le nom de l'acteur et celui du réalisateur acceptent des mots partiels dans
-n'importe quel ordre, sans tenir compte des majuscules. Ainsi, `titre=wars star` peut
-retrouver « Star Wars ». Pour une personne, tous les mots doivent appartenir au même nom.
-
-Le genre, le pays et la langue correspondent à une valeur complète, sans tenir compte des majuscules.
-Sans filtre, la recherche retourne tous les films, triés par titre.
-Une recherche sans résultat retourne une liste vide.
-
-## Location
-
-Le corps de la requête contient seulement le film choisi :
+### Connexion
 
 ```json
-{ "idFilm": 123 }
+{ "courriel": "client@exemple.com", "motDePasse": "motDePasseDuClient" }
 ```
 
-L'identifiant du client vient de la session, pas du corps de la requête.
-L'application vérifie que le compte est un client, qu'il possède un forfait valide,
-qu'il n'a pas atteint son quota et qu'une copie du film est disponible.
+La recherche porte sur les clients, avec les données personnelles héritées de
+`Utilisateur`. Un employé seul ne peut pas se connecter à cette application.
+Un courriel inconnu ou un mauvais mot de passe retourne le même message avec `401`.
+Le mot de passe reste comparé au format existant du labo 1.
 
-| Forfait | Locations simultanées | Durée maximale |
-| --- | ---: | ---: |
-| D | 1 | 10 jours |
-| I | 5 | 30 jours |
-| A | 10 | Illimitée |
+Le JSON retourne le profil, l'adresse, le forfait et la carte masquée lorsqu'ils existent.
+Le mot de passe, le CVV et le numéro complet de carte ne sont jamais renvoyés.
+Le jeton est protégé par ASP.NET Core, expire après 30 minutes et se trouve dans
+l'en-tête de réponse `X-Auth-Token`. La réponse de connexion est marquée `no-store`.
 
-Une location est en cours lorsque `dateRetour` est absente.
-Une ancienne location retournée ne bloque ni la copie ni le quota.
-La date de retour prévue est calculée à partir du forfait courant; elle n'est pas stockée dans une nouvelle colonne.
-Pour le forfait A, elle vaut `null`.
+### Recherche et consultation
 
-La vérification et l'insertion se déroulent dans une transaction.
-Sur Oracle, le client puis le film sont verrouillés avec `SELECT ... FOR UPDATE WAIT 5`.
-Les appels de location de l'API respectent cet ordre pour protéger le quota et la disponibilité.
-Les valeurs SQL sont passées en paramètres. L'insertion de `Location` utilise EF Core.
-Les triggers du labo 1 restent actifs.
+Les critères suivants sont facultatifs et combinés par un **ET** :
 
-La réponse `201` contient l'identifiant de location généré par Oracle, le film,
-le code de copie, la date de location et la date de retour prévue.
-La liste des locations ne retourne que celles du client connecté.
-
-## Réponses d'erreur
-
-| Code | Situation |
+| Paramètre | Comportement |
 | --- | --- |
-| 400 | Champs invalides, identifiant de film non positif ou intervalle d'années incohérent. |
-| 401 | Identifiants incorrects ou session absente. |
-| 403 | Consultation du profil d'un autre utilisateur ou location avec un compte non client. |
-| 404 | Film, personne ou profil client introuvable. |
-| 409 | Quota atteint, aucune copie disponible, forfait absent ou conflit de location. |
+| `titre` | Tous les mots partiels doivent apparaître dans le titre, dans n'importe quel ordre. |
+| `anneeMin`, `anneeMax` | Intervalle inclusif ; années entre 1 et 9999. |
+| `pays`, `genre`, `langue` | Valeur complète, sans distinction de majuscules. |
+| `realisateur`, `acteur` | Tous les mots partiels doivent appartenir au nom d'une même personne. |
 
-## Mappage Oracle
+`titre`, `pays`, `genre`, `realisateur` et `acteur` peuvent être répétés.
+Deux paramètres `acteur` exigent que les deux recherches d'acteurs soient satisfaites.
 
-Le mappage utilise les noms de tables et de colonnes en majuscules, les chaînes `VARCHAR2`,
-les dates `DATE` et un `CLOB` pour la biographie. Le SQL généré reste compatible avec Oracle 19c et les versions suivantes.
-Les colonnes facultatives du schéma existant sont représentées par des types C# nullables.
-Les réponses peuvent donc contenir `null` lorsqu'un renseignement est absent dans la base.
+```text
+/api/films?titre=wars%20star
+/api/films?acteur=ford&acteur=hamill
+/api/films?genre=Aventure&genre=Science-fiction
+/api/films?anneeMin=1970&anneeMax=1990&langue=English
+```
 
-Les identifiants existants sont conservés. Seul `Location.IdLocation` est généré à l'insertion par la colonne identity.
-Les tables associatives gardent leurs clés composées.
+Les espaces seuls sont ignorés. Des critères contradictoires retournent une liste vide.
+Un intervalle inversé ou un format d'année invalide retourne `400`.
+Les longueurs maximales suivent les colonnes du schéma.
 
-La fiche détaillée d'un film charge ses collections avec les
-[requêtes séparées EF Core](https://learn.microsoft.com/ef/core/querying/single-split-queries).
-Les [transactions EF Core](https://learn.microsoft.com/ef/core/saving/transactions)
-encadrent les écritures et les [verrous Oracle](https://docs.oracle.com/en/database/oracle/oracle-database/21/adfns/sql-processing-for-application-developers.html)
-sont libérés à la validation ou à l'annulation.
+La fiche d'un film regroupe pays, genres, réalisateur, scénaristes, acteurs, personnages
+et liens des bandes-annonces. Un acteur jouant plusieurs personnages apparaît une fois,
+avec sa liste `personnages`. Les biographies se consultent par `/api/personnes/{id}`.
+Les données facultatives absentes restent `null`.
+Le catalogue est accessible sans jeton.
 
-## Démonstration et conception
+### Location
 
-- [Démonstration](DEMONSTRATION.md) : commandes PowerShell et résultats attendus.
-- [Conception](CONCEPTION.md) : responsabilités des classes, mappage et déroulement d'une location.
+```http
+POST /api/locations
+Authorization: Bearer JETON_RECU_A_LA_CONNEXION
+Content-Type: application/json
+```
+
+```json
+{ "idUtilisateur": 42, "idFilm": 10 }
+```
+
+L'identifiant du corps doit correspondre au client du jeton.
+Une demande valide réserve une copie disponible et insère une ligne dans `LOCATION`.
+La date de retour reste absente tant que la copie n'a pas été retournée.
+
+```json
+{ "idLocation": 123, "idFilm": 10, "codeCopie": "COPIE-001", "dateLocation": "2026-10-31T00:00:00" }
+```
+
+Cet exemple illustre le format ; les identifiants et codes dépendent des données Oracle.
+Les forfaits D, I et A permettent respectivement 1, 5 et 10 locations en cours.
+Leurs durées maximales existantes sont de 10 jours, 30 jours et sans limite.
+Le retour et la gestion des retards ne font pas partie des endpoints des cas 2, 3 et 4.
+
+Une transaction couvre les contrôles et l'insertion. Sur Oracle, l'API verrouille le client,
+puis le film, pour sérialiser les demandes simultanées de cette API. L'attente est limitée
+à cinq secondes. Les triggers du labo 1 restent actifs.
+
+| Statut | Signification |
+| --- | --- |
+| `200` | Connexion ou consultation réussie. |
+| `201` | Location enregistrée. |
+| `400` | Champs requis, identifiants ou critères invalides. |
+| `401` | Identifiants de connexion invalides, jeton absent, invalide ou expiré pour une location. |
+| `403` | Tentative de location pour un autre client, ou compte qui n'est plus un client. |
+| `404` | Film ou personne introuvable. |
+| `409` | Quota atteint, copie indisponible, forfait invalide ou conflit de location. |
+
+Les refus métier utilisent `ProblemDetails` et les erreurs de saisie `ValidationProblemDetails`.
+
+## 5 - Mappage du labo 1
+
+Les 17 tables et leurs colonnes sont conservées. Les noms Oracle sont en majuscules,
+les chaînes en `VARCHAR2`, les dates en `DATE`, la biographie en `CLOB` et le coût en
+`NUMBER(5,2)`. Les clés composées des associations sont conservées.
+`LOCATION.IDLOCATION` est généré par Oracle ; les identifiants existants ne sont pas régénérés.
+
+`Utilisateur` est la classe abstraite commune. `Client` et `Employe` en héritent.
+Le mappage TPT utilise les tables `UTILISATEUR`, `CLIENT` et `EMPLOYE`, reliées par leur
+clé primaire partagée. Il ne demande aucune colonne de discriminateur.
+Aucune fonctionnalité de gestion des employés ou de création de compte n'est ajoutée.
+
+Le mappage ORM vers Oracle se trouve dans les entités et `Data/Configurations`.
+Les profils AutoMapper servent à la conversion des réponses HTTP.
+Les justifications détaillées figurent dans [CONCEPTION.md](CONCEPTION.md).
+
+## 6 - Intégration et vérification
+
+Le frontend est conservé tel quel. Lors de son intégration avec les locations protégées,
+il devra lire `X-Auth-Token` après la connexion, puis transmettre
+`Authorization: Bearer ...`. Le JSON `ClientDto`, les routes et le corps de location sont conservés.
+CORS autorise les appels avec cet en-tête et expose `X-Auth-Token`, sans cookie ni credentials.
+
+Le parcours complet de vérification sur Oracle, les résultats attendus et les points à
+présenter sont dans [DEMONSTRATION.md](DEMONSTRATION.md).
+Les tests automatisés sont conservés localement hors des fichiers suivis par Git.
+La validation des verrous, triggers et écritures réelles doit être effectuée sur Oracle.

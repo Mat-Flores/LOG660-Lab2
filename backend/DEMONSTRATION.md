@@ -1,162 +1,210 @@
-# Démonstration du backend
+# Vérifier et présenter le backend
 
-## 1. Démarrer l'application
+## 1 - Démarrer l'API
 
-Vérifier que le VPN ÉTS est connecté si nécessaire et que le SDK .NET 9 est installé.
-Depuis la racine du projet, ouvrir un premier terminal :
+Depuis la racine du dépôt :
 
 ```powershell
-cd backend
-dotnet restore
-dotnet build
-dotnet run --project Lab2.Api
+dotnet restore backend/Lab2.sln
+dotnet build backend/Lab2.sln
+# Si nécessaire, remplacer la connexion pour ce terminal :
+$env:ConnectionStrings__Default = 'User Id=VOTRE_SCHEMA;Password=VOTRE_MOT_DE_PASSE;Data Source=HOTE:PORT/SERVICE'
+dotnet run --project backend/Lab2.Api
 ```
 
-Résultat attendu : le serveur écoute sur `http://localhost:5080`.
-Le laisser ouvert. Les commandes suivantes se lancent dans un second terminal PowerShell.
+Garder ce terminal ouvert. La suite se fait dans un second terminal PowerShell.
+Il faut accéder au réseau du serveur Oracle et utiliser un client et son mot de passe du labo 1.
+Une erreur Oracle de connexion se résout d'abord dans la configuration réseau/connexion.
+Aucune création de schéma ou migration n'est nécessaire.
 
-Si Oracle ne répond pas, vérifier d'abord la résolution du serveur et son port :
-
-```powershell
-Resolve-DnsName bdlog660.ens.ad.etsmtl.ca
-Test-NetConnection bdlog660.ens.ad.etsmtl.ca -Port 1521
-```
-
-Le nom doit se résoudre et `TcpTestSucceeded` doit valoir `True`.
-Une erreur `ORA-12154` peut indiquer que la connexion Oracle n'a pas pu résoudre son adresse.
-Ne pas recréer les tables pour résoudre un problème de réseau.
-
-## 2. Vérifier qu'une connexion est nécessaire
+## 2 - Se connecter et conserver le jeton
 
 ```powershell
-curl.exe -i http://localhost:5080/api/films
-```
-
-Résultat attendu : `401 Unauthorized`.
-
-## 3. Se connecter
-
-Utiliser le courriel et le mot de passe d'un client déjà présent dans les données du labo 1.
-Le compte Oracle d'équipe sert à la connexion à la base; ce n'est pas le compte client de l'application.
-
-```powershell
-$base = 'http://localhost:5080'
-$courriel = Read-Host 'Courriel du client'
-$secret = Read-Host 'Mot de passe du client' -AsSecureString
+$api = 'http://localhost:5080'
+$identifiants = Get-Credential -Message 'Courriel et mot de passe du client du labo 1'
 $corps = @{
-    courriel = $courriel
-    motDePasse = [System.Net.NetworkCredential]::new('', $secret).Password
+    courriel = $identifiants.UserName
+    motDePasse = $identifiants.GetNetworkCredential().Password
 } | ConvertTo-Json
-
-$utilisateur = Invoke-RestMethod -Method Post -Uri "$base/api/auth/connexion" `
-    -ContentType 'application/json' -Body $corps -SessionVariable session
-$utilisateur | Format-List
-```
-
-Résultat attendu : l'identité de l'utilisateur, sans mot de passe. La variable `$session`
-conserve le cookie pour les requêtes suivantes. Un mauvais courriel ou mot de passe retourne `401`.
-
-Consulter le profil et vérifier son forfait :
-
-```powershell
-$profil = Invoke-RestMethod -Uri "$base/api/clients/$($utilisateur.idUtilisateur)" -WebSession $session
+$reponse = Invoke-WebRequest "$api/api/auth/login" -Method Post -ContentType 'application/json' -Body $corps -UseBasicParsing
+$profil = $reponse.Content | ConvertFrom-Json
+$jeton = @($reponse.Headers['X-Auth-Token'])[0]
+$entetes = @{ Authorization = "Bearer $jeton" }
 $profil | ConvertTo-Json -Depth 5
 ```
 
-Résultat attendu : les renseignements du client et son forfait. Le numéro de carte est masqué et le CVV est absent.
+Attendu : `200`, profil du client et forfait. La carte est masquée ; le mot de passe
+et le CVV sont absents. Le jeton est dans un en-tête séparé, avec une validité de 30 minutes.
 
-## 4. Rechercher et consulter
+Refaire l'appel avec un mauvais mot de passe : `401` avec un message clair.
+Un compte uniquement employé doit aussi être refusé. Un champ requis vide donne `400`.
+PowerShell lève une exception pour les réponses `4xx` : le statut est consultable dans
+`$_.Exception.Response.StatusCode` à l'intérieur d'un bloc `catch`.
+
+## 3 - Rechercher et consulter
+
+Les consultations ne nécessitent pas de jeton :
 
 ```powershell
-$films = @(Invoke-RestMethod -Uri "$base/api/films?titre=star" -WebSession $session)
+$listes = Invoke-RestMethod "$api/api/films/criteres"
+$listes | ConvertTo-Json -Depth 4
+$films = Invoke-RestMethod "$api/api/films?titre=star"
 $films | Format-Table idFilm, titre, anneeSortie
 ```
 
-Si les données ne contiennent pas ce titre, omettre le filtre ou choisir un mot d'un titre existant.
-Pour un titre contenant « Star Wars », les requêtes `titre=star%20wars` et `titre=wars%20star`
-doivent retourner les mêmes films.
+Choisir des mots présents dans la base. Une liste vide est un résultat valide si aucun
+film ne correspond. Pour vérifier les mots inversés, comparer `titre=star%20wars`
+et `titre=wars%20star` si ce titre existe dans les données.
 
-Combiner des filtres, en prenant des valeurs réellement présentes dans la base :
+Autres exemples à adapter aux valeurs des listes :
 
-```powershell
-Invoke-RestMethod -Uri "$base/api/films?acteur=ford&anneeMin=1970&anneeMax=2000" -WebSession $session
+```text
+/api/films?anneeMin=1970&anneeMax=1990
+/api/films?acteur=ford&acteur=hamill
+/api/films?genre=Aventure&genre=Science-fiction
+/api/films?pays=USA&langue=English
 ```
 
-Choisir un identifiant dans les résultats, puis ouvrir la fiche :
+Un même critère acteur ne doit pas assembler les mots des noms de personnes différentes.
+Les critères répétés doivent tous être satisfaits.
+
+Choisir un identifiant trouvé dans les résultats :
 
 ```powershell
 $idFilm = [int](Read-Host 'Identifiant du film à consulter')
-$film = Invoke-RestMethod -Uri "$base/api/films/$idFilm" -WebSession $session
-$film | ConvertTo-Json -Depth 6
-
-if ($null -ne $film.realisateur) {
-    Invoke-RestMethod -Uri "$base/api/personnes/$($film.realisateur.idPersonne)" -WebSession $session
+$fiche = Invoke-RestMethod "$api/api/films/$idFilm"
+$fiche | ConvertTo-Json -Depth 8
+# Si le film a un réalisateur :
+if ($null -ne $fiche.realisateur) {
+    Invoke-RestMethod "$api/api/personnes/$($fiche.realisateur.idPersonne)" | Format-List
 }
 ```
 
-Résultat attendu : la fiche du film et ses associations, puis les renseignements du réalisateur s'il est connu.
-Chaque acteur et scénariste possède aussi un `idPersonne` utilisable avec la même route.
+Attendu : fiche avec les informations disponibles, les genres et pays, les personnes,
+les personnages et les bandes-annonces. Un acteur à plusieurs rôles apparaît une fois.
+Une valeur facultative absente reste `null`. Un identifiant inexistant retourne `404`.
+Tester `anneeMin=abc`, `anneeMin=0` et `anneeMin=2000&anneeMax=1900` : `400`.
 
-## 5. Louer un film
+## 4 - Choisir un cas de location sur Oracle
 
-Cette commande enregistre une location réelle pour le client connecté. Choisir un client
-dont le quota permet encore une location et un film possédant une copie disponible.
+Dans votre outil SQL, ces lectures permettent de repérer le quota et une copie libre.
+Remplacer les identifiants par ceux choisis :
+
+```sql
+SELECT c.idUtilisateur, c.codeForfait, f.locationsMax,
+       (SELECT COUNT(*) FROM location l
+        WHERE l.idUtilisateur = c.idUtilisateur AND l.dateRetour IS NULL) AS locationsActives
+FROM client c
+JOIN forfait f ON f.code = c.codeForfait
+WHERE c.idUtilisateur = 42;
+
+SELECT c.idFilm, c.codeCopie
+FROM copie c
+WHERE NOT EXISTS (
+    SELECT 1 FROM location l
+    WHERE l.codeCopie = c.codeCopie AND l.dateRetour IS NULL
+)
+FETCH FIRST 20 ROWS ONLY;
+```
+
+Les écritures de la prochaine étape ajoutent de vraies locations dans le schéma connecté.
+Utiliser un compte et une copie prévus pour la démonstration.
+
+## 5 - Louer et vérifier l'écriture
 
 ```powershell
-$demande = @{ idFilm = $idFilm } | ConvertTo-Json
-$location = Invoke-RestMethod -Method Post -Uri "$base/api/locations" `
-    -ContentType 'application/json' -Body $demande -WebSession $session
+$idFilm = [int](Read-Host 'Identifiant du film avec copie disponible')
+$demande = @{ idUtilisateur = $profil.idUtilisateur; idFilm = $idFilm } | ConvertTo-Json
+$reponseLocation = Invoke-WebRequest "$api/api/locations" -Method Post -Headers $entetes -ContentType 'application/json' -Body $demande -UseBasicParsing
+$location = $reponseLocation.Content | ConvertFrom-Json
 $location | Format-List
-
-Invoke-RestMethod -Uri "$base/api/locations" -WebSession $session
 ```
 
-Résultat attendu : `201 Created`, une copie choisie automatiquement et un identifiant de location.
-La nouvelle location apparaît dans les locations en cours. L'API ne reçoit aucun identifiant de client dans le corps de la demande.
+Attendu : `201` avec `idLocation`, `idFilm`, `codeCopie` et `dateLocation`.
+Dans Oracle, avec l'identifiant reçu :
 
-Pour le forfait D, la date prévue est 10 jours après la location; pour I, 30 jours; pour A, elle est absente.
-La durée illimitée du forfait A ne supprime pas sa limite de 10 locations simultanées.
-
-## 6. Montrer les refus attendus
-
-Avec un client au forfait D ayant déjà une location en cours, une nouvelle demande doit retourner `409`.
-La location refusée ne doit pas apparaître dans la liste.
-
-```powershell
-Invoke-RestMethod -Method Post -Uri "$base/api/locations" `
-    -ContentType 'application/json' -Body $demande -WebSession $session
+```sql
+SELECT idLocation, idUtilisateur, codeCopie, dateLocation, dateRetour
+FROM location
+WHERE idLocation = 123;
 ```
 
-Autres cas à montrer selon les données disponibles :
+Attendu : une ligne pour le client connecté, avec `dateRetour` absente.
 
-| Cas | Résultat attendu |
+Vérifier ensuite les refus :
+
+| Situation | Attendu |
 | --- | --- |
-| Intervalle `anneeMin=2000&anneeMax=1900` | `400` |
-| Recherche d'un titre absent | `200` et liste vide |
-| Fiche d'un identifiant inexistant | `404` |
-| Location avec `idFilm=0` | `400` |
-| Film dont toutes les copies sont louées | `409` |
-| Profil d'un autre client | `403` |
+| Même requête sans l'en-tête Authorization | `401`, aucune insertion. |
+| Jeton modifié ou expiré | `401`, aucune insertion. |
+| Identifiant d'un autre client dans le JSON | `403`, aucune insertion. |
+| Identifiant utilisateur ou film absent, nul ou négatif | `400`. |
+| Film inexistant | `404`. |
+| Film dont toutes les copies sont déjà louées | `409`, message de disponibilité. |
+| Client D/I/A ayant déjà 1/5/10 locations actives | `409`, message de quota. |
+| Client sans forfait exploitable | `409`, message de forfait. |
 
-Le retour d'une copie relève d'un autre cas d'utilisation. Il n'est pas ajouté aux routes du labo 2.
+Les codes et messages d'erreur sont visibles dans Postman ou dans la réponse HTTP.
+Avec Postman, copier `X-Auth-Token` de la réponse de connexion dans l'authentification
+`Bearer Token` de la requête de location.
 
-## 7. Fermer la session
+Pour libérer une location de démonstration, votre outil SQL peut enregistrer son retour
+avec l'identifiant exact reçu et celui du client :
 
-```powershell
-Invoke-RestMethod -Method Post -Uri "$base/api/auth/deconnexion" -WebSession $session
-Invoke-RestMethod -Uri "$base/api/films" -WebSession $session
+```sql
+UPDATE location
+SET dateRetour = SYSDATE
+WHERE idLocation = 123 AND idUtilisateur = 42 AND dateRetour IS NULL;
+COMMIT;
 ```
 
-Résultat attendu : déconnexion avec `204`, puis `401` pour la recherche suivante.
+Cela conserve l'historique. Vérifier qu'une copie retournée peut ensuite être relouée.
 
-## Points à expliquer pendant la présentation
+## 6 - Vérifier les demandes simultanées sur Oracle
 
-1. Le contrôleur reçoit une requête HTTP et délègue à un service.
-2. Le service joue le rôle de façade et applique les règles métier.
-3. Le repository utilise EF Core pour lire ou modifier les données.
-4. Le mappage relie les classes C# aux tables et associations du labo 1.
-5. La session identifie le client; les DTO évitent de retourner les entités et leurs données sensibles.
-6. La transaction et les verrous protègent l'attribution des copies et le quota.
+Avec deux clients disposant d'une place dans leur forfait, choisir un film ayant exactement
+une copie libre. Envoyer les deux requêtes depuis deux onglets Postman ou terminaux.
+Une seule doit créer une location ; l'autre doit recevoir `409`.
+Vérifier qu'une seule location active existe pour la copie.
 
-Pour illustrer le code, suivre `LocationsController.Louer`, puis `LocationService.LouerAsync`
-et enfin `LocationRepository`. Les règles principales sont regroupées dans le service.
+Avec un client D sans location, lancer deux demandes vers des films différents.
+Une seule doit réussir ; l'autre doit être refusée par le quota.
+Le nombre de locations actives de ce client doit rester égal à un.
+Ces vérifications doivent utiliser cette API et le même schéma Oracle.
+Elles complètent les tests SQLite, qui n'exécutent pas les verrous ni les triggers Oracle.
+
+## 7 - Points à expliquer à l'oral
+
+1. Le contrôleur reçoit la demande ; le service sert de façade ; le repository utilise EF Core.
+2. `Client` hérite des données communes de `Utilisateur`. Le TPT joint les deux tables existantes.
+3. Les associations et leurs clés composées correspondent au SQL du labo 1.
+4. Les critères de recherche deviennent des filtres SQL combinés, sans charger tout le catalogue pour filtrer.
+5. Le jeton identifie le client côté serveur ; le JSON seul ne constitue pas une preuve de connexion.
+6. La transaction regroupe le contrôle du quota, le choix de copie et l'insertion.
+7. Les verrous client puis film coordonnent les locations simultanées de cette API.
+8. Les DTO limitent les données retournées et masquent la carte.
+
+Le détail des choix se trouve dans [CONCEPTION.md](CONCEPTION.md).
+Le frontend reste à intégrer avec l'en-tête du jeton pour le parcours de location.
+
+## 8 - Tests automatisés locaux
+
+Le dossier local `Lab2.Api.Tests/` est ignoré par Git. Depuis la racine :
+
+```powershell
+dotnet test backend/Lab2.Api.Tests/Lab2.Api.Tests.csproj -c Release
+```
+
+Le test Oracle en lecture est ignoré par défaut. Pour l'exécuter séparément sur votre réseau :
+
+```powershell
+$env:LOG660_ORACLE = '1'
+# Facultatif si la configuration appsettings.json ne convient pas :
+$env:LOG660_ORACLE_CONNECTION = 'User Id=VOTRE_SCHEMA;Password=VOTRE_MOT_DE_PASSE;Data Source=HOTE:PORT/SERVICE'
+dotnet test backend/Lab2.Api.Tests/Lab2.Api.Tests.csproj --filter FullyQualifiedName~OracleLectureTests
+Remove-Item Env:LOG660_ORACLE
+```
+
+Ce test compare les colonnes et exécute des lectures ORM dans une transaction en lecture seule.
+Il ne remplace pas les essais d'écriture et de concurrence ci-dessus.
+Conserver les sources des tests pour la démonstration et la remise séparée prévue par l'équipe.

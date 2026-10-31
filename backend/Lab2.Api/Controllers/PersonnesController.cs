@@ -1,12 +1,10 @@
 using Lab2.Api.Dtos;
 using Lab2.Api.Services;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Lab2.Api.Controllers;
 
 [ApiController]
-[Authorize]
 [Route("api/personnes")]
 public class PersonnesController : ControllerBase
 {
@@ -14,19 +12,16 @@ public class PersonnesController : ControllerBase
 
     public PersonnesController(ICatalogueService service) => _service = service;
 
+    // GET api/personnes/{id} : fiche d'un réalisateur ou d'un acteur.
     [HttpGet("{id:int}")]
+    [ProducesResponseType(typeof(PersonneDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<PersonneDto>> GetById(int id, CancellationToken ct)
     {
-        var personne = await _service.GetPersonneByIdAsync(id, ct);
+        var personne = await _service.GetPersonneAsync(id, ct);
 
-        if (personne is null)
-            return NotFound(new ProblemDetails
-            {
-                Status = StatusCodes.Status404NotFound,
-                Title = "Personne introuvable",
-                Detail = $"Aucune personne avec l'id {id}."
-            });
-
-        return Ok(personne);
+        return personne is null
+            ? Problem(statusCode: StatusCodes.Status404NotFound, title: "Personne introuvable", detail: $"Aucune personne avec l'id {id}.")
+            : Ok(personne);
     }
 }

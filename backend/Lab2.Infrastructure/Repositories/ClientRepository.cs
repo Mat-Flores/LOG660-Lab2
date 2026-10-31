@@ -15,22 +15,11 @@ public class ClientRepository : IClientRepository
     private IQueryable<Client> ClientsComplets() =>
         _context.Clients
             .AsNoTracking()
-            .Include(c => c.Utilisateur).ThenInclude(u => u.Adresse)
+            .Include(c => c.Adresse)
             .Include(c => c.Forfait)
             .Include(c => c.CarteCredit);
 
-    public Task<Client?> GetByIdAsync(int idUtilisateur, CancellationToken ct = default)
-        => ClientsComplets().FirstOrDefaultAsync(c => c.IdUtilisateur == idUtilisateur, ct);
-
     public Task<Client?> GetByCourrielAsync(string courriel, CancellationToken ct = default)
-        => ClientsComplets().FirstOrDefaultAsync(c => c.Utilisateur.Courriel == courriel, ct);
+        => ClientsComplets().FirstOrDefaultAsync(c => c.Courriel == courriel, ct);
 
-    public async Task<IReadOnlyList<Client>> GetAllAsync(CancellationToken ct = default)
-        => await ClientsComplets()
-            .OrderBy(c => c.Utilisateur.NomFamille)
-            .ThenBy(c => c.Utilisateur.Prenom)
-            .ToListAsync(ct);
-
-    public Task<bool> CourrielExisteAsync(string courriel, CancellationToken ct = default)
-        => _context.Utilisateurs.AnyAsync(u => u.Courriel == courriel, ct);
 }

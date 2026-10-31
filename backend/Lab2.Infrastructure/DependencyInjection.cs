@@ -16,10 +16,9 @@ public static class DependencyInjection
             ?? throw new InvalidOperationException("ConnectionStrings:Default est manquante.");
 
         services.AddDbContext<AppDbContext>(options => options.UseOracle(connectionString,
-            oracle => oracle.UseOracleSQLCompatibility(OracleSQLCompatibility.DatabaseVersion19)));
+            oracle => oracle.UseOracleSQLCompatibility(OracleSQLCompatibility.DatabaseVersion21)));
 
         services.AddScoped<IClientRepository, ClientRepository>();
-        services.AddScoped<IUtilisateurRepository, UtilisateurRepository>();
         services.AddScoped<ICatalogueRepository, CatalogueRepository>();
         services.AddScoped<ILocationRepository, LocationRepository>();
 
