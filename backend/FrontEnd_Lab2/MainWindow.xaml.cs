@@ -14,7 +14,7 @@ namespace Webflix
 {
     public partial class MainWindow : Window
     {
-        // Adresse du backend de tes coéquipiers.
+        // Adresse de l'API backend.
         private static readonly HttpClient Api = new HttpClient
         {
             BaseAddress = new Uri("http://localhost:5080/api/")
