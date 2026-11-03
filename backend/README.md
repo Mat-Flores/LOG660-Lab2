@@ -39,14 +39,14 @@ backend/
 
 | Composant | Responsabilité |
 | --- | --- |
-| Contrôleurs | Recevoir les demandes, contrôler l'identité pour la location et retourner les réponses HTTP. |
+| Contrôleurs | Recevoir les demandes, déléguer aux services et retourner les réponses HTTP. |
 | `ClientService` | Vérifier le courriel et le mot de passe d'un client, puis construire son profil. |
 | `CatalogueService` | Fournir la recherche, les critères disponibles et les fiches des films et personnes. |
 | `LocationService` | Orchestrer les contrôles métier et la transaction de location. |
 | Repositories | Exécuter les lectures et écritures EF Core. |
 | Entités et configurations | Mapper les classes, propriétés, identifiants, associations et spécialisations sur Oracle. |
 | Profils AutoMapper | Construire les DTO sans exposer les entités et leurs propriétés sensibles. |
-| `Program.cs` | Configurer les dépendances, l'authentification par jeton, CORS et les contrôleurs. |
+| `Program.cs` | Configurer les dépendances, CORS et les contrôleurs. |
 
 Les services forment les façades : le client déclenche une opération sans connaître
 les requêtes ni les règles nécessaires à son exécution.
@@ -79,12 +79,12 @@ existant, y compris ses contraintes et ses triggers.
 
 | Méthode | Route | Entrée | Réponse |
 | --- | --- | --- | --- |
-| POST | `/api/auth/login` | `ConnexionDto` | `ClientDto` et en-tête `X-Auth-Token` |
+| POST | `/api/auth/login` | `ConnexionDto` | `ClientDto` |
 | GET | `/api/films/criteres` | — | Genres, pays et langues pour les listes de recherche |
 | GET | `/api/films` | Critères de recherche dans l'URL | Liste de `FilmResumeDto` |
 | GET | `/api/films/{id}` | Identifiant du film | `FilmDetailDto` |
 | GET | `/api/personnes/{id}` | Identifiant de la personne | `PersonneDto` |
-| POST | `/api/locations` | `NouvelleLocationDto` et jeton | `LocationDto`, statut `201` |
+| POST | `/api/locations` | `NouvelleLocationDto` | `LocationDto`, statut `201` |
 
 ### Connexion
 
@@ -99,8 +99,8 @@ Le mot de passe reste comparé au format existant du labo 1.
 
 Le JSON retourne le profil, l'adresse, le forfait et la carte masquée lorsqu'ils existent.
 Le mot de passe, le CVV et le numéro complet de carte ne sont jamais renvoyés.
-Le jeton est protégé par ASP.NET Core, expire après 30 minutes et se trouve dans
-l'en-tête de réponse `X-Auth-Token`. La réponse de connexion est marquée `no-store`.
+Le frontend conserve ce `ClientDto` et réutilise `idUtilisateur` pour les locations.
+Aucun jeton ni cookie n'est émis.
 
 ### Recherche et consultation
 
@@ -131,13 +131,11 @@ La fiche d'un film regroupe pays, genres, réalisateur, scénaristes, acteurs, p
 et liens des bandes-annonces. Un acteur jouant plusieurs personnages apparaît une fois,
 avec sa liste `personnages`. Les biographies se consultent par `/api/personnes/{id}`.
 Les données facultatives absentes restent `null`.
-Le catalogue est accessible sans jeton.
 
 ### Location
 
 ```http
 POST /api/locations
-Authorization: Bearer JETON_RECU_A_LA_CONNEXION
 Content-Type: application/json
 ```
 
@@ -145,7 +143,7 @@ Content-Type: application/json
 { "idUtilisateur": 42, "idFilm": 10 }
 ```
 
-L'identifiant du corps doit correspondre au client du jeton.
+`idUtilisateur` est celui du `ClientDto` reçu à la connexion ; il doit désigner un client.
 Une demande valide réserve une copie disponible et insère une ligne dans `LOCATION`.
 La date de retour reste absente tant que la copie n'a pas été retournée.
 
@@ -167,8 +165,8 @@ puis le film, pour sérialiser les demandes simultanées de cette API. L'attente
 | `200` | Connexion ou consultation réussie. |
 | `201` | Location enregistrée. |
 | `400` | Champs requis, identifiants ou critères invalides. |
-| `401` | Identifiants de connexion invalides, jeton absent, invalide ou expiré pour une location. |
-| `403` | Tentative de location pour un autre client, ou compte qui n'est plus un client. |
+| `401` | Identifiants de connexion invalides. |
+| `403` | `idUtilisateur` qui ne correspond à aucun client. |
 | `404` | Film ou personne introuvable. |
 | `409` | Quota atteint, copie indisponible, forfait invalide ou conflit de location. |
 
@@ -192,10 +190,8 @@ Les justifications détaillées figurent dans [CONCEPTION.md](CONCEPTION.md).
 
 ## 6 - Intégration et vérification
 
-Le frontend est conservé tel quel. Lors de son intégration avec les locations protégées,
-il devra lire `X-Auth-Token` après la connexion, puis transmettre
-`Authorization: Bearer ...`. Le JSON `ClientDto`, les routes et le corps de location sont conservés.
-CORS autorise les appels avec cet en-tête et expose `X-Auth-Token`, sans cookie ni credentials.
+Le frontend garde le `ClientDto` reçu à la connexion et envoie son `idUtilisateur`
+dans le corps de `POST /api/locations`. CORS accepte toutes les origines, sans cookie ni credentials.
 
 Le parcours complet de vérification sur Oracle, les résultats attendus et les points à
 présenter sont dans [DEMONSTRATION.md](DEMONSTRATION.md).

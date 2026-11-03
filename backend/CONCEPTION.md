@@ -51,14 +51,9 @@ ou si le mot de passe est incorrect. Un compte uniquement employé est refusé.
 Le JSON de réponse reste un `ClientDto` : profil, adresse, forfait et carte masquée.
 Le mot de passe, le CVV et le numéro complet de carte ne sont pas retournés.
 
-Le jeton protégé par ASP.NET Core est renvoyé dans l'en-tête `X-Auth-Token`.
-Il contient l'identifiant du client et expire après 30 minutes. Pour louer,
-il faut l'envoyer dans `Authorization: Bearer ...`. Le serveur vérifie aussi
-que `idUtilisateur` dans le JSON correspond au client connecté.
-
-Le catalogue est public. Le frontend doit encore récupérer et transmettre le jeton
-pour les locations. CORS expose `X-Auth-Token` et autorise l'en-tête `Authorization`.
-On n'utilise pas de cookie.
+Aucun jeton ni cookie n'est émis : le frontend conserve le `ClientDto` et renvoie
+son `idUtilisateur` dans le corps de la location. `LocationService` vérifie que cet
+identifiant désigne un client avec un forfait valide avant toute insertion.
 
 ## Recherche et fiches
 

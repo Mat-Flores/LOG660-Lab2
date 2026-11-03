@@ -86,8 +86,6 @@ une ancienne connexion si la nouvelle échoue.
 
 ```powershell
 $profil = $null
-$jeton = $null
-$entetes = @{}
 $reponse = $null
 
 try {
@@ -102,10 +100,7 @@ try {
         -UseBasicParsing -ErrorAction Stop
 
     $profil = $reponse.Content | ConvertFrom-Json
-    $jeton = @($reponse.Headers['X-Auth-Token'])[0]
-    $entetes = @{ Authorization = "Bearer $jeton" }
     "Connexion HTTP : $($reponse.StatusCode)"
-    "Jeton reçu : $(-not [string]::IsNullOrWhiteSpace($jeton))"
     $profil | ConvertTo-Json -Depth 5
 }
 catch {
@@ -117,10 +112,8 @@ catch {
 }
 ```
 
-Attendu : `200`, jeton reçu `True`, profil avec forfait et carte masquée.
+Attendu : `200`, profil avec forfait et carte masquée.
 Le mot de passe et le CVV ne doivent pas être présents dans la réponse.
-Le jeton se trouve dans `$reponse.Headers['X-Auth-Token']`, pas dans le JSON du profil.
-Il expire après 30 minutes : refaire la connexion si nécessaire.
 
 Un mauvais mot de passe, un courriel inconnu ou un compte uniquement employé donne `401`.
 Un champ requis vide donne `400`. Après un test avec de mauvais identifiants,
@@ -149,14 +142,14 @@ $reponseLocation = $null
 $location = $null
 
 try {
-    if ($null -eq $profil -or [string]::IsNullOrWhiteSpace($jeton)) {
+    if ($null -eq $profil) {
         throw 'Faire une connexion valide avant de louer.'
     }
     $idFilm = [int](Read-Host 'Identifiant du film avec copie disponible')
     $demande = @{ idUtilisateur = $profil.idUtilisateur; idFilm = $idFilm } | ConvertTo-Json
 
     $reponseLocation = Invoke-WebRequest "$api/api/locations" `
-        -Method Post -Headers $entetes -ContentType 'application/json' `
+        -Method Post -ContentType 'application/json' `
         -Body $demande -UseBasicParsing -ErrorAction Stop
 
     "Location HTTP : $($reponseLocation.StatusCode)"
@@ -195,8 +188,7 @@ GROUP BY c.idUtilisateur, f.locationsMax;
 
 | Cas à tester | Statut attendu |
 | --- | --- |
-| Jeton absent, invalide ou expiré | `401`. Refaire la connexion et reconstruire `$entetes` si le jeton a expiré. |
-| `idUtilisateur` différent de celui du client connecté | `403`. |
+| `idUtilisateur` qui n'est pas un client (ex. un employé) | `403`. |
 | Identifiant absent, nul ou négatif | `400`. |
 | Film inexistant | `404`. |
 | Toutes les copies sont louées | `409`. |
@@ -205,8 +197,7 @@ GROUP BY c.idUtilisateur, f.locationsMax;
 
 Les refus ne doivent ajouter aucune location. Dans PowerShell, les réponses `4xx`
 passent dans le `catch` ; le statut et le message sont affichés.
-Dans Postman, copier le jeton reçu dans `X-Auth-Token` vers l'onglet Authorization,
-type Bearer Token, de `POST /api/locations`. Le corps JSON contient `idUtilisateur` et `idFilm`.
+Dans Postman, `POST /api/locations` prend un corps JSON avec `idUtilisateur` et `idFilm`.
 
 Pour libérer une location de test en conservant l'historique, remplacer les deux
 identifiants par ceux de la location et du client :
@@ -231,5 +222,4 @@ Refaire avec un client D sans location et deux films différents. Une seule dema
 doit réussir ; le client doit garder une seule location active.
 Ces essais se font sur Oracle pour vérifier les verrous et les triggers.
 
-Le frontend doit encore transmettre le jeton pour tester la location depuis ses écrans.
 Les choix de mappage et de fonctionnement sont dans [CONCEPTION.md](CONCEPTION.md).
