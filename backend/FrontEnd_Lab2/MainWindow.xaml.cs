@@ -1,4 +1,4 @@
-﻿
+﻿﻿
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -400,10 +400,13 @@ namespace Webflix
                 FilmTitle.Text = _filmDetail.Titre;
 
                 FilmYear.Text =
-                    $"Année de sortie : {_filmDetail.AnneeSortie}";
+                    "Année de sortie : " +
+                    (_filmDetail.AnneeSortie?.ToString() ?? "Non précisée");
 
                 FilmDuration.Text =
-                    $"Durée : {_filmDetail.DureeMinutes} minutes";
+                    _filmDetail.DureeMinutes.HasValue
+                    ? $"Durée : {_filmDetail.DureeMinutes} minutes"
+                    : "Durée : Non précisée";
 
                 FilmGenre.Text =
                     "Genres : " +
@@ -681,7 +684,7 @@ namespace Webflix
     {
         public int IdFilm { get; set; }
         public string Titre { get; set; } = "";
-        public int AnneeSortie { get; set; }
+        public int? AnneeSortie { get; set; }
         public string? UrlAffiche { get; set; }
     }
 
@@ -689,12 +692,12 @@ namespace Webflix
     {
         public int IdFilm { get; set; }
         public string Titre { get; set; } = "";
-        public int AnneeSortie { get; set; }
+        public int? AnneeSortie { get; set; }
 
         public List<string> Pays { get; set; } = new();
 
         public string? LangueOriginale { get; set; }
-        public int DureeMinutes { get; set; }
+        public int? DureeMinutes { get; set; }
 
         public List<string> Genres { get; set; } = new();
 
