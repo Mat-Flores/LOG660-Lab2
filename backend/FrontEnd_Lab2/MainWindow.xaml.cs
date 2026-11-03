@@ -1,5 +1,6 @@
 ﻿﻿
 using System;
+using System.Windows.Media;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -601,7 +602,69 @@ namespace Webflix
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    RentalMessage.Text = await ApiError(response);
+                    ProblemDto? problem = null;
+
+                    try
+                    {
+                        problem = await response.Content
+                            .ReadFromJsonAsync<ProblemDto>(_json);
+                    }
+                    catch
+                    {
+                        // La réponse ne contient pas nécessairement du JSON.
+                    }
+
+                    string detail = problem?.Detail ?? problem?.Title ?? "";
+
+                    bool noCopiesAvailable =
+                        response.StatusCode == HttpStatusCode.Conflict &&
+                        (
+                            string.Equals(
+                                problem?.Code,
+                                "NO_COPIES_AVAILABLE",
+                                StringComparison.OrdinalIgnoreCase)
+                            ||
+                            (
+                                detail.Contains("copie", StringComparison.OrdinalIgnoreCase)
+                                &&
+                                detail.Contains("disponib", StringComparison.OrdinalIgnoreCase)
+                            )
+                        );
+
+                    RentalMessage.Foreground = Brushes.Firebrick;
+
+                    if (noCopiesAvailable)
+                    {
+                        RentalMessage.Text =
+                            "LOCATION IMPOSSIBLE : aucune copie de ce film " +
+                            "n'est actuellement disponible. Veuillez choisir un autre film.";
+
+                        return;
+                    }
+
+                    if (response.StatusCode == HttpStatusCode.Unauthorized)
+                    {
+                        //_authToken = null;
+
+                        RentalMessage.Text =
+                            "Votre session a expiré. Veuillez vous reconnecter.";
+
+                        return;
+                    }
+
+                    if (response.StatusCode == HttpStatusCode.Forbidden)
+                    {
+                        RentalMessage.Text =
+                            "Vous n'êtes pas autorisé à effectuer cette location.";
+
+                        return;
+                    }
+
+                    RentalMessage.Text =
+                        detail.Length > 0
+                            ? detail
+                            : $"Erreur HTTP {(int)response.StatusCode} lors de la location.";
+
                     return;
                 }
 
@@ -609,9 +672,11 @@ namespace Webflix
                     await response.Content
                         .ReadFromJsonAsync<LocationDto>(_json);
 
-                RentalMessage.Text = location == null
-                    ? "Location confirmée."
-                    : $"Location confirmée. Numéro : {location.IdLocation}.";
+                RentalMessage.Foreground = Brushes.ForestGreen;
+                RentalMessage.Text =
+                    location == null
+                        ? "Location confirmée."
+                        : $"Location confirmée. Numéro : {location.IdLocation}.";
 
                 MessageBox.Show(
                     RentalMessage.Text,
@@ -749,5 +814,7 @@ namespace Webflix
     {
         public string? Title { get; set; }
         public string? Detail { get; set; }
+
+        public string? Code { get; set; }
     }
 }

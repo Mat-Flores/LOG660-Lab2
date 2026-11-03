@@ -443,9 +443,11 @@
                                    Margin="5,5,5,20"/>
 
                         <TextBlock x:Name="RentalMessage"
+                                   Foreground="#B91C1C"
+                                   FontWeight="SemiBold"
+                                   FontSize="15"
                                    TextWrapping="Wrap"
-                                   Margin="5"
-                                   FontSize="15"/>
+                                   Margin="5,10,5,10"/>
 
                         <StackPanel Orientation="Horizontal"
                                     HorizontalAlignment="Right"
