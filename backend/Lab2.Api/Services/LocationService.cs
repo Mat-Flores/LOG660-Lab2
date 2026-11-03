@@ -36,7 +36,8 @@ public class LocationService : ILocationService
             Client = client!,
             CodeCopie = copie.CodeCopie,
             Copie = copie,
-            DateLocation = DateTime.Today
+            // Colonne DATE sans fuseau : Unspecified évite un décalage horaire dans le JSON.
+            DateLocation = DateTime.SpecifyKind(DateTime.Today, DateTimeKind.Unspecified)
         };
 
         await _repository.AjouterAsync(location, ct);
