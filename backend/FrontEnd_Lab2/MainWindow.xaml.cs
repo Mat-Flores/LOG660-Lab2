@@ -79,7 +79,7 @@ namespace Webflix
         }
 
         // --------------------------------------------------
-        // CU1 : CONNEXION
+        // CU2 : CONNEXION
         // POST /api/auth/login
         // --------------------------------------------------
 
@@ -204,7 +204,7 @@ namespace Webflix
         }
 
         // --------------------------------------------------
-        // CU2 : RECHERCHE DE FILMS
+        // CU3 : RECHERCHE DE FILMS
         // GET /api/films
         // --------------------------------------------------
 
