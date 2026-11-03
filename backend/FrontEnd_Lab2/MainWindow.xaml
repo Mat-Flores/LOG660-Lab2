@@ -75,7 +75,7 @@
         <Grid Grid.Row="1">
 
             <!-- ===================================== -->
-            <!-- CU1 : CONNEXION -->
+            <!-- CU2 : CONNEXION -->
             <!-- ===================================== -->
 
             <Border x:Name="LoginView"
@@ -89,7 +89,7 @@
 
                 <StackPanel>
 
-                    <TextBlock Text="CU1 : Connexion"
+                    <TextBlock Text="CU2 : Connexion"
                                FontSize="23"
                                FontWeight="Bold"
                                Margin="5,0,5,20"/>
@@ -119,7 +119,7 @@
             </Border>
 
             <!-- ===================================== -->
-            <!-- CU2 : RECHERCHE DE FILMS -->
+            <!-- CU3 : RECHERCHE DE FILMS -->
             <!-- ===================================== -->
 
             <Grid x:Name="SearchView"
@@ -142,7 +142,7 @@
 
                         <StackPanel>
 
-                            <TextBlock Text="CU2 : Recherche"
+                            <TextBlock Text="CU3 : Recherche"
                                        FontSize="22"
                                        FontWeight="Bold"
                                        Margin="5,5,5,15"/>
