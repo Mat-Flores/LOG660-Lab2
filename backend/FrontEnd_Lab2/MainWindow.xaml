@@ -264,19 +264,52 @@
                                        Foreground="#27843D"
                                        Margin="5"/>
 
-                            <TextBlock x:Name="FilmYear"
-                                       FontSize="16"
-                                       Margin="5"/>
+                            <!-- Affiche du film (URLAFFICHE) à gauche, informations à droite -->
+                            <Grid Margin="0,5,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
 
-                            <TextBlock x:Name="FilmDuration"
-                                       Margin="5"/>
+                                <Border Grid.Column="0"
+                                        Width="150"
+                                        Height="220"
+                                        Margin="5,5,20,5"
+                                        Background="#EEF1F3"
+                                        CornerRadius="6"
+                                        VerticalAlignment="Top">
+                                    <Grid>
+                                        <TextBlock x:Name="FilmPosterMissing"
+                                                   Text="Affiche non disponible"
+                                                   Foreground="#687780"
+                                                   TextWrapping="Wrap"
+                                                   TextAlignment="Center"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"/>
+                                        <Image x:Name="FilmPoster"
+                                               Stretch="Uniform"/>
+                                    </Grid>
+                                </Border>
 
-                            <TextBlock x:Name="FilmGenre"
-                                       Margin="5"/>
+                                <StackPanel Grid.Column="1">
 
-                            <TextBlock x:Name="FilmLanguage"
-                                       Margin="5"
-                                       TextWrapping="Wrap"/>
+                                    <TextBlock x:Name="FilmYear"
+                                               FontSize="16"
+                                               Margin="5"/>
+
+                                    <TextBlock x:Name="FilmDuration"
+                                               Margin="5"/>
+
+                                    <TextBlock x:Name="FilmGenre"
+                                               Margin="5"
+                                               TextWrapping="Wrap"/>
+
+                                    <TextBlock x:Name="FilmLanguage"
+                                               Margin="5"
+                                               TextWrapping="Wrap"/>
+
+                                </StackPanel>
+                            </Grid>
 
                             <TextBlock Text="Résumé"
                                        FontSize="18"
@@ -378,11 +411,45 @@
                                        Foreground="#27843D"
                                        Margin="5"/>
 
-                            <TextBlock x:Name="ActorBirthDate"
-                                       Margin="5"/>
+                            <!-- Photo de la personne (PHOTO) à gauche, informations à droite -->
+                            <Grid Margin="0,5,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
 
-                            <TextBlock x:Name="ActorBirthPlace"
-                                       Margin="5"/>
+                                <Border Grid.Column="0"
+                                        Width="130"
+                                        Height="180"
+                                        Margin="5,5,20,5"
+                                        Background="#EEF1F3"
+                                        CornerRadius="6"
+                                        VerticalAlignment="Top">
+                                    <Grid>
+                                        <TextBlock x:Name="ActorPhotoMissing"
+                                                   Text="Photo non disponible"
+                                                   Foreground="#687780"
+                                                   TextWrapping="Wrap"
+                                                   TextAlignment="Center"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"/>
+                                        <Image x:Name="ActorPhoto"
+                                               Stretch="Uniform"/>
+                                    </Grid>
+                                </Border>
+
+                                <StackPanel Grid.Column="1"
+                                            VerticalAlignment="Center">
+
+                                    <TextBlock x:Name="ActorBirthDate"
+                                               Margin="5"/>
+
+                                    <TextBlock x:Name="ActorBirthPlace"
+                                               Margin="5"
+                                               TextWrapping="Wrap"/>
+
+                                </StackPanel>
+                            </Grid>
 
                             <TextBlock Text="Biographie"
                                        FontSize="18"
