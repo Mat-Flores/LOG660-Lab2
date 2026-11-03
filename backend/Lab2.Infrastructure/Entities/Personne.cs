@@ -12,10 +12,9 @@ public class Personne
     [Column("IDPERSONNE")]
     public int IdPersonne { get; set; }
 
-    [Required]
     [Column("NOM")]
     [MaxLength(60)]
-    public string Nom { get; set; } = string.Empty;
+    public string? Nom { get; set; } = string.Empty;
 
     [Column("DATENAISSANCE")]
     public DateTime? DateNaissance { get; set; }

@@ -1,6 +1,5 @@
 using AutoMapper;
 using Lab2.Api.Dtos;
-using Lab2.Infrastructure.Repositories;
 using Lab2.Infrastructure.Repositories.Interfaces;
 
 namespace Lab2.Api.Services;
@@ -16,9 +15,12 @@ public class ClientService : IClientService
         _mapper = mapper;
     }
 
-    public async Task<ClientDto?> GetByIdAsync(int idUtilisateur, CancellationToken ct = default)
+    // Le format du mot de passe reste celui des données du labo 1.
+    public async Task<ClientDto?> AuthentifierAsync(string courriel, string motDePasse, CancellationToken ct = default)
     {
-        var client = await _repository.GetByIdAsync(idUtilisateur, ct);
-        return client is null ? null : _mapper.Map<ClientDto>(client);
+        var client = await _repository.GetByCourrielAsync(courriel.Trim(), ct);
+        return client is null || !string.Equals(client.MotDePasse, motDePasse, StringComparison.Ordinal)
+            ? null
+            : _mapper.Map<ClientDto>(client);
     }
 }
