@@ -17,14 +17,30 @@ public class AuthController : ControllerBase
     [HttpPost("login")]
     [ProducesResponseType(typeof(ClientDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     public async Task<ActionResult<ClientDto>> Login(ConnexionDto connexion, CancellationToken ct)
     {
         var client = await _service.AuthentifierAsync(connexion.Courriel, connexion.MotDePasse, ct);
 
-        // Même message dans les deux cas : on ne révèle pas si le courriel existe.
-        return client is null
-            ? Problem(statusCode: StatusCodes.Status401Unauthorized, title: "Connexion refusée",
-                detail: "Courriel ou mot de passe invalide. Veuillez entrer de nouvelles valeurs.")
-            : Ok(client);
+        if (client is not null)
+            return Ok(client);
+
+        // Un compte employé valide est reconnu, mais l'application Webflix
+        // réserve ce point d'entrée de connexion aux clients.
+        var estEmploye = await _service.EmployeAuthentifieAsync(
+            connexion.Courriel, connexion.MotDePasse, ct);
+
+        if (estEmploye)
+        {
+            return Problem(
+                statusCode: StatusCodes.Status403Forbidden,
+                title: "Accès réservé aux clients",
+                detail: "Ce compte est un compte employé. Les employés ne peuvent pas se connecter à l'application Webflix; veuillez utiliser un compte client.");
+        }
+
+        return Problem(
+            statusCode: StatusCodes.Status401Unauthorized,
+            title: "Connexion refusée",
+            detail: "Courriel ou mot de passe invalide. Veuillez entrer de nouvelles valeurs.");
     }
 }

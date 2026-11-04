@@ -22,4 +22,8 @@ public class ClientRepository : IClientRepository
     public Task<Client?> GetByCourrielAsync(string courriel, CancellationToken ct = default)
         => ClientsComplets().FirstOrDefaultAsync(c => c.Courriel == courriel, ct);
 
+    public Task<Employe?> GetEmployeByCourrielAsync(string courriel, CancellationToken ct = default)
+        => _context.Employes
+            .AsNoTracking()
+            .FirstOrDefaultAsync(e => e.Courriel == courriel, ct);
 }

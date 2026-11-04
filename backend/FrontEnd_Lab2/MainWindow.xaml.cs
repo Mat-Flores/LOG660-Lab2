@@ -1,4 +1,4 @@
-﻿﻿
+﻿
 using System;
 using System.Windows.Media;
 using System.Collections.Generic;
@@ -107,8 +107,11 @@ namespace Webflix
                 using HttpResponseMessage response =
                     await Api.PostAsJsonAsync("auth/login", demande);
 
-                if (response.StatusCode == HttpStatusCode.Unauthorized)
+                if (response.StatusCode == HttpStatusCode.Unauthorized ||
+                    response.StatusCode == HttpStatusCode.Forbidden)
                 {
+                    // Le backend renvoie 403 avec un message spécifique
+                    // lorsqu'un compte employé tente d'ouvrir une session client.
                     LoginMessage.Text = await ApiError(response);
                     return;
                 }
