@@ -46,8 +46,8 @@ public class AppDbContext : DbContext
             var builder = modelBuilder.Entity(entityType.ClrType);
             builder.ToTable(entityType.ClrType.Name.ToUpperInvariant());
 
-            foreach (var property in entityType.GetProperties().ToList())
-                builder.Property(property.Name).HasColumnName(property.Name.ToUpperInvariant());
+            foreach (var property in entityType.GetDeclaredProperties().ToList())
+                property.SetColumnName(property.Name.ToUpperInvariant());
         }
     }
 }

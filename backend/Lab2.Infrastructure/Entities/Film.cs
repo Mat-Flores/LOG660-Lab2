@@ -15,25 +15,23 @@ public class Film
     [Column("IDREALISATEUR")]
     public int? IdRealisateur { get; set; }
 
-    [Required]
     [Column("TITRE")]
     [MaxLength(120)]
-    public string Titre { get; set; } = string.Empty;
+    public string? Titre { get; set; } = string.Empty;
 
     [Column("ANNEESORTIE")]
-    public int AnneeSortie { get; set; }
+    public int? AnneeSortie { get; set; }
 
     [Column("DUREEMINUTES")]
-    public int DureeMinutes { get; set; }
+    public int? DureeMinutes { get; set; }
 
     [Column("LANGUEORIGINALE")]
     [MaxLength(30)]
     public string? LangueOriginale { get; set; }
 
-    [Required]
     [Column("RESUME")]
     [MaxLength(1000)]
-    public string Resume { get; set; } = string.Empty;
+    public string? Resume { get; set; } = string.Empty;
 
     [Column("URLAFFICHE")]
     [MaxLength(200)]

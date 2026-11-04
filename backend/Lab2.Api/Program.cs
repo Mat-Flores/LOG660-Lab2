@@ -3,19 +3,16 @@ using Lab2.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Infrastructure : DbContext Oracle + repositories
 builder.Services.AddInfrastructure(builder.Configuration);
-
-// AutoMapper : détecte automatiquement tous les profils de l'assembly Api
 builder.Services.AddAutoMapper(_ => { }, typeof(Program).Assembly);
-
-// Services (logique métier)
 builder.Services.AddScoped<IClientService, ClientService>();
-
+builder.Services.AddScoped<ICatalogueService, CatalogueService>();
+builder.Services.AddScoped<ILocationService, LocationService>();
+builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy
+    .AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));
 builder.Services.AddControllers();
 
 var app = builder.Build();
-
+app.UseCors();
 app.MapControllers();
-
 app.Run();

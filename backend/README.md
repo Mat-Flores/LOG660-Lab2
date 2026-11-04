@@ -1,145 +1,199 @@
 # Lab2 - Backend
 
+Le serveur couvre les cas d'utilisation 2 (connexion), 3 (consultation) et 4 (location).
+Il utilise les tables et les données Oracle du labo 1 avec Entity Framework Core,
+l'équivalent ORM retenu pour les deux projets .NET existants.
+
 ## 1 - Structure
 
-```txt
-Lab2/
-├── .gitignore                            # Fichiers exclus de git (bin/, obj/, .vs/, ...)
-├── backend/
-│   ├── Lab2.sln                          # Solution .NET : regroupe les deux projets
-│   │
-│   ├── Lab2.Infrastructure/              # Accès aux données (aucune dépendance vers Api)
-│   │   ├── DependencyInjection.cs        # AddInfrastructure(): DbContext Oracle + repositories
-│   │   ├── Entities/                     # 17 entités, 1 fichier par table, annotées
-│   │   ├── Data/
-│   │   │   ├── AppDbContext.cs           # Point d'entrée EF Core (DbSet = tables)
-│   │   │   └── Configurations/           # 1 fichier par entité : relations, ON DELETE
-│   │   └── Repositories/
-│   │       ├── Interfaces/ 
-│   │       │   └── IClientRepository.cs
-│   │       └── ClientRepository.cs       # Exemple: Requêtes EF Core sur CLIENT
-│   │
-│   └── Lab2.Api/                         # Exposition HTTP (dépend de Infrastructure)
-│       ├── Controllers/
-│       │   └── ClientsController.cs      # GET api/clients/{id}
-│       ├── Services/
-│       │   ├── IClientService.cs         # Contrat : logique métier des clients
-│       │   └── ClientService.cs          # Repository -> Entité -> DTO
-│       ├── Dtos/                         # 7 DTOs, 1 fichier par classe
-│       ├── Mapping/
-│       │   └── ClientProfile.cs          # Profil AutoMapper (Entité -> DTO)
-│       ├── Properties/
-│       │   └── launchSettings.json       # Port 5080, environnement Development
-│       ├── Program.cs                    # Composition : DI, AutoMapper, services, controllers
-│       ├── appsettings.json              # Chaîne de connexion Oracle
-│       └── Lab2.Api.http                 # Requêtes de test (VS / VS Code)
-│
-└── frontend/                             # Application cliente (indépendante)
+```text
+backend/
+├── Lab2.sln
+├── README.md
+├── CONCEPTION.md
+├── DEMONSTRATION.md
+├── Lab2.Infrastructure/
+│   ├── DependencyInjection.cs
+│   ├── Entities/                     # Classes métier et annotations ORM
+│   ├── Data/
+│   │   ├── AppDbContext.cs
+│   │   └── Configurations/           # Clés, associations et héritage TPT
+│   ├── Models/RegleLocationException.cs
+│   └── Repositories/
+│       ├── Interfaces/
+│       ├── ClientRepository.cs
+│       ├── CatalogueRepository.cs
+│       ├── LocationRepository.cs
+│       └── RechercheFilmCriteres.cs
+└── Lab2.Api/
+    ├── Controllers/                  # Auth, Films, Personnes, Locations
+    ├── Services/                     # Façades des cas 2, 3 et 4
+    ├── Dtos/                         # Contrats HTTP d'entrée et de sortie
+    ├── Mapping/                      # Conversion entités → DTO
+    ├── Properties/launchSettings.json
+    ├── Program.cs
+    └── appsettings.json
 ```
 
-Flux :
-`Frontend <-> Controller <-> DTO <-> (Profile) <-> Service <-> Entité <-> Repository <-> DbContext <-> Oracle`
+## 2 - Rôle des composants
 
-## 2 - Rôle de chaque dossier
-
-### Racine
-
-| Élément | Rôle |
+| Composant | Responsabilité |
 | --- | --- |
-| `.gitignore` | Liste ce que git ignore : fichiers compilés (`bin/`, `obj/`), dossiers d'IDE (`.vs/`, `.idea/`). |
-| `backend/` | Tout le code serveur .NET. |
-| `frontend/` | Application cliente. Indépendante du .NET : elle ne communique avec le backend que par HTTP/JSON et ne voit que les DTOs. |
+| Contrôleurs | Recevoir les demandes, déléguer aux services et retourner les réponses HTTP. |
+| `ClientService` | Vérifier le courriel et le mot de passe d'un client, puis construire son profil. |
+| `CatalogueService` | Fournir la recherche, les critères disponibles et les fiches des films et personnes. |
+| `LocationService` | Orchestrer les contrôles métier et la transaction de location. |
+| Repositories | Exécuter les lectures et écritures EF Core. |
+| Entités et configurations | Mapper les classes, propriétés, identifiants, associations et spécialisations sur Oracle. |
+| Profils AutoMapper | Construire les DTO sans exposer les entités et leurs propriétés sensibles. |
+| `Program.cs` | Configurer les dépendances, CORS et les contrôleurs. |
 
-### `backend/`
+Les services forment les façades : le client déclenche une opération sans connaître
+les requêtes ni les règles nécessaires à son exécution.
+`Lab2.Api` dépend de `Lab2.Infrastructure`. Infrastructure ne dépend pas d'Api.
 
-| Élément | Rôle |
-| --- | --- |
-| `Lab2.sln` | Fichier de solution : regroupe `Lab2.Infrastructure` et `Lab2.Api` pour les compiler ensemble et les ouvrir dans l'IDE. Il ne contient aucun code. |
+## 3 - Installation et lancement
 
-### `Lab2.Infrastructure/` — tout ce qui touche à Oracle
+Prérequis : SDK .NET 9, accès réseau à Oracle et identifiants du schéma du labo 1.
+Le pilote Oracle est fourni par NuGet.
 
-Si la base de données change, seul ce projet est modifié. Il ne connaît ni l'Api, ni les DTOs, ni HTTP.
+Depuis la racine du dépôt, dans PowerShell :
 
-| Élément | Rôle |
-| --- | --- |
-| `DependencyInjection.cs` | Méthode `AddInfrastructure(configuration)` appelée par `Program.cs` : lit la chaîne de connexion, enregistre le `DbContext` Oracle et les repositories. |
-| `Entities/` | Classes C# qui représentent les tables (`Client`, `Film`, `Location`, ...). Les annotations (`[Table]`, `[Column]`, `[Key]`, `[ForeignKey]`, ...) décrivent le mapping vers les tables et colonnes Oracle. Les entités ne sortent jamais de l'Api. |
-| `Data/AppDbContext.cs` | Point d'entrée d'EF Core : un `DbSet` par table, conventions de types (`VARCHAR2`, `DATE`) et chargement des configurations. |
-| `Data/Configurations/` | Une classe par entité qui complète les annotations : relations et comportements `ON DELETE` (cascade ou restrict). |
-| `Repositories/` | Les requêtes EF Core (LINQ), cachées derrière des interfaces pour que les services ne touchent jamais au `DbContext`. Ils renvoient des entités, jamais des DTOs. |
+```powershell
+dotnet restore backend/Lab2.sln
+dotnet build backend/Lab2.sln
+# Facultatif : remplacer la configuration uniquement pour ce terminal.
+$env:ConnectionStrings__Default = 'User Id=VOTRE_SCHEMA;Password=VOTRE_MOT_DE_PASSE;Data Source=HOTE:PORT/SERVICE'
+dotnet run --project backend/Lab2.Api
+```
 
-### `Lab2.Api/` — tout ce qui touche au monde extérieur
+L'API écoute sur `http://localhost:5080` avec le profil fourni.
+La connexion peut aussi être configurée dans `Lab2.Api/appsettings.json`.
+Le fournisseur génère du SQL compatible Oracle 21c pour éviter les expressions
+booléennes SQL des versions plus récentes.
 
-Dépend de `Lab2.Infrastructure`. C'est le projet de démarrage.
+L'application ne lance aucune migration ni création de tables. Elle utilise le schéma
+existant, y compris ses contraintes et ses triggers.
 
-| Élément | Rôle | Connaît | Ne connaît pas |
+## 4 - Endpoints
+
+| Méthode | Route | Entrée | Réponse |
 | --- | --- | --- | --- |
-| `Controllers/` | Endpoints REST. Gardés minces : lisent la requête, appellent un service, renvoient un code HTTP (200, 404, ...). | Services, DTOs | DbContext, Repositories, Entités |
-| `Services/` | Logique métier : orchestrent les repositories et convertissent les entités en DTOs avec AutoMapper. | Repositories, Entités, DTOs | HTTP |
-| `Dtos/` | Objets échangés avec le frontend. **Sortie** : `ClientDto`, `ForfaitDto`, `AdresseDto`, `CarteCreditDto` (numéro de carte masqué, ni CVV ni mot de passe). | — | — |
-| `Mapping/` | Profils AutoMapper qui décrivent la conversion Entité -> DTO (par exemple, `ClientProfile` aplatit `Utilisateur` dans `ClientDto`). | Entités, DTOs | — |
+| POST | `/api/auth/login` | `ConnexionDto` | `ClientDto` |
+| GET | `/api/films/criteres` | — | Genres, pays et langues pour les listes de recherche |
+| GET | `/api/films` | Critères de recherche dans l'URL | Liste de `FilmResumeDto` |
+| GET | `/api/films/{id}` | Identifiant du film | `FilmDetailDto` |
+| GET | `/api/personnes/{id}` | Identifiant de la personne | `PersonneDto` |
+| POST | `/api/locations` | `NouvelleLocationDto` | `LocationDto`, statut `201` |
 
-Les autres fichiers de l'Api :
+### Connexion
 
-| Élément | Rôle |
+```json
+{ "courriel": "client@exemple.com", "motDePasse": "motDePasseDuClient" }
+```
+
+La recherche porte sur les clients, avec les données personnelles héritées de
+`Utilisateur`. Un employé seul ne peut pas se connecter à cette application.
+Un courriel inconnu ou un mauvais mot de passe retourne le même message avec `401`.
+Le mot de passe reste comparé au format existant du labo 1.
+
+Le JSON retourne le profil, l'adresse, le forfait et la carte masquée lorsqu'ils existent.
+Le mot de passe, le CVV et le numéro complet de carte ne sont jamais renvoyés.
+Le frontend conserve ce `ClientDto` et réutilise `idUtilisateur` pour les locations.
+Aucun jeton ni cookie n'est émis.
+
+### Recherche et consultation
+
+Les critères suivants sont facultatifs et combinés par un **ET** :
+
+| Paramètre | Comportement |
 | --- | --- |
-| `Program.cs` | Composition de l'application : enregistre l'Infrastructure, AutoMapper, les services et les controllers, puis démarre le serveur. |
-| `appsettings.json` | Configuration : chaîne de connexion Oracle (`ConnectionStrings:Default`). |
-| `Properties/launchSettings.json` | Profil de lancement local : port 5080 et environnement `Development`. |
+| `titre` | Tous les mots partiels doivent apparaître dans le titre, dans n'importe quel ordre. |
+| `anneeMin`, `anneeMax` | Intervalle inclusif ; années entre 1 et 9999. |
+| `pays`, `genre`, `langue` | Valeur complète, sans distinction de majuscules. |
+| `realisateur`, `acteur` | Tous les mots partiels doivent appartenir au nom d'une même personne. |
 
-## 3 - Installation
+`titre`, `pays`, `genre`, `realisateur` et `acteur` peuvent être répétés.
+Deux paramètres `acteur` exigent que les deux recherches d'acteurs soient satisfaites.
 
-### Prérequis
-
-| Outil | Version | Rôle |
-| --- | --- | --- |
-| SDK .NET | 9.0.x | Compile et lance le backend (le projet cible `net9.0`). |
-
-Aucun client Oracle à installer : le pilote est fourni par les paquets NuGet, que `dotnet restore` télécharge automatiquement (connexion Internet requise au premier lancement).
-
-### Installer le SDK .NET 9
-
-Sous Windows (PowerShell) :
-
-```powershell
-winget install Microsoft.DotNet.SDK.9
+```text
+/api/films?titre=wars%20star
+/api/films?acteur=ford&acteur=hamill
+/api/films?genre=Aventure&genre=Science-fiction
+/api/films?anneeMin=1970&anneeMax=1990&langue=English
 ```
 
-Sans `winget`, ou sous un autre système : télécharger le **SDK** 9.0 (et non seulement un « Runtime ») sur <https://dotnet.microsoft.com/download/dotnet/9.0>.
+Les espaces seuls sont ignorés. Des critères contradictoires retournent une liste vide.
+Un intervalle inversé ou un format d'année invalide retourne `400`.
+Les longueurs maximales suivent les colonnes du schéma.
 
-Le SDK inclut déjà le runtime : rien d'autre à installer.
+La fiche d'un film regroupe pays, genres, réalisateur, scénaristes, acteurs, personnages
+et liens des bandes-annonces. Un acteur jouant plusieurs personnages apparaît une fois,
+avec sa liste `personnages`. Les biographies se consultent par `/api/personnes/{id}`.
+Les données facultatives absentes restent `null`.
 
-### Vérifier l'installation
+### Location
 
-Ouvrir un **nouveau** terminal (pour que le `PATH` soit à jour), puis :
-
-```powershell
-dotnet --list-sdks
+```http
+POST /api/locations
+Content-Type: application/json
 ```
 
-Une ligne commençant par `9.0.` doit apparaître.
-
-> Un SDK plus récent seul (par exemple 10.x) ne suffit pas pour **lancer** le projet : l'application cible .NET 9 et a besoin du runtime 9. Il faut installer le SDK 9 en plus ; les deux versions cohabitent sans problème.
-
-### IDE (facultatif)
-
-Visual Studio 2022 (17.12 ou plus récent), VS Code avec l'extension C# Dev Kit, ou Rider. Le projet se lance aussi sans IDE, en ligne de commande (voir ci-dessous).
-
-## 4 - Lancement
-
-Toutes les commandes `dotnet` se lancent depuis `Lab2/backend/`.
-
-```powershell
-cd backend
-dotnet restore
-dotnet build
-dotnet run --project Lab2.Api       # écoute sur http://localhost:5080
+```json
+{ "idUtilisateur": 42, "idFilm": 10 }
 ```
 
-## 5 - Test
+`idUtilisateur` est celui du `ClientDto` reçu à la connexion ; il doit désigner un client.
+Une demande valide réserve une copie disponible et insère une ligne dans `LOCATION`.
+La date de retour reste absente tant que la copie n'a pas été retournée.
 
-Le seul endpoint exposé pour l'instant est `GET /api/clients/{id}` :
-
-```powershell
-curl.exe -i http://localhost:5080/api/clients/464812     # 200 + JSON si l'id existe, 404 sinon
+```json
+{ "idLocation": 123, "idFilm": 10, "codeCopie": "COPIE-001", "dateLocation": "2026-10-31T00:00:00" }
 ```
+
+Cet exemple illustre le format ; les identifiants et codes dépendent des données Oracle.
+Les forfaits D, I et A permettent respectivement 1, 5 et 10 locations en cours.
+Leurs durées maximales existantes sont de 10 jours, 30 jours et sans limite.
+Le retour et la gestion des retards ne font pas partie des endpoints des cas 2, 3 et 4.
+
+Une transaction couvre les contrôles et l'insertion. Sur Oracle, l'API verrouille le client,
+puis le film, pour sérialiser les demandes simultanées de cette API. L'attente est limitée
+à cinq secondes. Les triggers du labo 1 restent actifs.
+
+| Statut | Signification |
+| --- | --- |
+| `200` | Connexion ou consultation réussie. |
+| `201` | Location enregistrée. |
+| `400` | Champs requis, identifiants ou critères invalides. |
+| `401` | Identifiants de connexion invalides. |
+| `403` | `idUtilisateur` qui ne correspond à aucun client. |
+| `404` | Film ou personne introuvable. |
+| `409` | Quota atteint, copie indisponible, forfait invalide ou conflit de location. |
+
+Les refus métier utilisent `ProblemDetails` et les erreurs de saisie `ValidationProblemDetails`.
+
+## 5 - Mappage du labo 1
+
+Les 17 tables et leurs colonnes sont conservées. Les noms Oracle sont en majuscules,
+les chaînes en `VARCHAR2`, les dates en `DATE`, la biographie en `CLOB` et le coût en
+`NUMBER(5,2)`. Les clés composées des associations sont conservées.
+`LOCATION.IDLOCATION` est généré par Oracle ; les identifiants existants ne sont pas régénérés.
+
+`Utilisateur` est la classe abstraite commune. `Client` et `Employe` en héritent.
+Le mappage TPT utilise les tables `UTILISATEUR`, `CLIENT` et `EMPLOYE`, reliées par leur
+clé primaire partagée. Il ne demande aucune colonne de discriminateur.
+Aucune fonctionnalité de gestion des employés ou de création de compte n'est ajoutée.
+
+Le mappage ORM vers Oracle se trouve dans les entités et `Data/Configurations`.
+Les profils AutoMapper servent à la conversion des réponses HTTP.
+Les justifications détaillées figurent dans [CONCEPTION.md](CONCEPTION.md).
+
+## 6 - Intégration et vérification
+
+Le frontend garde le `ClientDto` reçu à la connexion et envoie son `idUtilisateur`
+dans le corps de `POST /api/locations`. CORS accepte toutes les origines, sans cookie ni credentials.
+
+Le parcours complet de vérification sur Oracle, les résultats attendus et les points à
+présenter sont dans [DEMONSTRATION.md](DEMONSTRATION.md).
+Les tests automatisés sont conservés localement hors des fichiers suivis par Git.
+La validation des verrous, triggers et écritures réelles doit être effectuée sur Oracle.
