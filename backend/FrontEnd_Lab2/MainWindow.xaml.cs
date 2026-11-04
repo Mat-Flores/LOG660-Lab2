@@ -10,6 +10,7 @@ using System.Net.Http.Json;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media.Imaging;
 
 namespace Webflix
 {
@@ -435,6 +436,8 @@ namespace Webflix
 
                 FilmTrailers.ItemsSource = _filmDetail.BandesAnnonces;
 
+                AfficherImage(FilmPoster, FilmPosterMissing, _filmDetail.UrlAffiche);
+
                 FilmActors.ItemsSource = _filmDetail.Acteurs;
 
                 if (_filmDetail.Realisateur != null)
@@ -505,6 +508,68 @@ namespace Webflix
                 "Réalisateur");
         }
 
+        // Affiche une image distante (affiche d'un film ou photo d'une personne).
+        // Si l'URL est absente ou si le téléchargement échoue,
+        // le message « non disponible » reste visible à la place.
+        private static void AfficherImage(
+            System.Windows.Controls.Image cible,
+            TextBlock messageAbsent,
+            string? url)
+        {
+            cible.Source = null;
+            cible.Visibility = Visibility.Collapsed;
+            messageAbsent.Visibility = Visibility.Visible;
+
+            Uri? adresse = NormaliserUrlImage(url);
+            if (adresse == null)
+                return;
+
+            try
+            {
+                var image = new BitmapImage();
+                image.BeginInit();
+                image.UriSource = adresse;
+                image.CacheOption = BitmapCacheOption.OnLoad;
+                image.EndInit();
+
+                void Echec(object? s, ExceptionEventArgs e)
+                {
+                    cible.Source = null;
+                    cible.Visibility = Visibility.Collapsed;
+                    messageAbsent.Visibility = Visibility.Visible;
+                }
+
+                image.DownloadFailed += Echec;
+                image.DecodeFailed += Echec;
+
+                cible.Source = image;
+                cible.Visibility = Visibility.Visible;
+                messageAbsent.Visibility = Visibility.Collapsed;
+            }
+            catch (Exception)
+            {
+                // URL invalide ou format non pris en charge :
+                // on garde le message « non disponible ».
+            }
+        }
+
+        // Les URL du labo 1 pointent vers l'ancien domaine d'images d'IMDb
+        // (http://ia.media-imdb.com). On passe en HTTPS sur le domaine actuel.
+        private static Uri? NormaliserUrlImage(string? url)
+        {
+            if (string.IsNullOrWhiteSpace(url))
+                return null;
+
+            string propre = url.Trim()
+                .Replace("http://ia.media-imdb.com/", "https://m.media-amazon.com/")
+                .Replace("https://ia.media-imdb.com/", "https://m.media-amazon.com/");
+
+            return Uri.TryCreate(propre, UriKind.Absolute, out Uri? adresse)
+                   && (adresse.Scheme == Uri.UriSchemeHttp || adresse.Scheme == Uri.UriSchemeHttps)
+                ? adresse
+                : null;
+        }
+
         private async Task LoadPersonAsync(
             int personId,
             string role)
@@ -535,6 +600,8 @@ namespace Webflix
                 ActorBiography.Text =
                     person.Biographie ??
                     "Aucune biographie disponible.";
+
+                AfficherImage(ActorPhoto, ActorPhotoMissing, person.Photo);
 
                 // Le endpoint PersonneDto ne fournit pas
                 // la filmographie complète.
