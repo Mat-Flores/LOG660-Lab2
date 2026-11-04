@@ -31,8 +31,6 @@ public class ClientService : IClientService
     {
         var employe = await _repository.GetEmployeByCourrielAsync(courriel.Trim(), ct);
 
-        // On confirme aussi le mot de passe avant de révéler que le compte
-        // est un compte employé plutôt qu'un compte client.
         return employe is not null &&
                string.Equals(employe.MotDePasse, motDePasse, StringComparison.Ordinal);
     }

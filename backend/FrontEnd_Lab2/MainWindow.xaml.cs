@@ -110,8 +110,7 @@ namespace Webflix
                 if (response.StatusCode == HttpStatusCode.Unauthorized ||
                     response.StatusCode == HttpStatusCode.Forbidden)
                 {
-                    // Le backend renvoie 403 avec un message spécifique
-                    // lorsqu'un compte employé tente d'ouvrir une session client.
+                    //erreur quand employe tente de se connecter
                     LoginMessage.Text = await ApiError(response);
                     return;
                 }
